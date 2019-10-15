@@ -9,7 +9,6 @@ This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 #include "AnalysisTools/Core/include/Tools.h"
 #include "AnalysisTools/Core/include/TextIO.h"
 #include "h-tautau/Core/include/AnalysisTypes.h"
-// #include "hh-bbtautau/Analysis/include/Categories.h"
 
 namespace analysis {
 
