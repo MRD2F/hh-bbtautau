@@ -50,8 +50,11 @@ public:
     static constexpr float default_value = std::numeric_limits<float>::lowest();
     static constexpr int default_int_value = std::numeric_limits<int>::lowest();
 
-    SyncTreeProducer(const Arguments& _args) : args(_args), syncMode(Parse<SyncMode>(args.mode())), run_period(Parse<analysis::Period>(args.period())), eventWeights(Parse<analysis::Period>(args.period()), JetOrdering::DeepCSV, DiscriminatorWP::Medium, true),
+    SyncTreeProducer(const Arguments& _args) : args(_args), syncMode(Parse<SyncMode>(args.mode())),
+                                               run_period(Parse<analysis::Period>(args.period())),
                                                signalObjectSelector(ConvertMode(syncMode))
+                                               // eventWeights(Parse<analysis::Period>(args.period()), JetOrdering::DeepCSV, DiscriminatorWP::Medium, true)
+
     {
         if(args.mva_setup().size()) {
             ConfigReader config_reader;
@@ -204,7 +207,6 @@ private:
         //     event_infos[EventEnergyScale::JetUp] = event_infos[EventEnergyScale::Central]->ApplyShift(Parse<UncertaintySource>(args.jet_uncertainty()), UncertaintyScale::Up);
         //     event_infos[EventEnergyScale::JetDown] = event_infos[EventEnergyScale::Central]->ApplyShift(Parse<UncertaintySource>(args.jet_uncertainty()), UncertaintyScale::Down);
         // }
-
         htt_sync::FillSyncTuple(*event_infos[EventEnergyScale::Central], sync, run_period, false, 1,
                                 mva_reader.get(),
                                 // event_infos[EventEnergyScale::TauUp].get(),
@@ -221,7 +223,7 @@ private:
     Arguments args;
     SyncMode syncMode;
     analysis::Period run_period;
-    mc_corrections::EventWeights eventWeights;
+    // mc_corrections::EventWeights eventWeights;
     boost::optional<MvaReaderSetup> mva_setup;
     std::shared_ptr<analysis::mva_study::MvaReader> mva_reader;
     SignalObjectSelector signalObjectSelector;

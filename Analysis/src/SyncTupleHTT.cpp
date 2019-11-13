@@ -18,7 +18,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
                    analysis::EventInfoBase* event_jet_up,
                    analysis::EventInfoBase* event_jet_down)
 {
-
     static constexpr float default_value = std::numeric_limits<float>::lowest();
     static constexpr int default_int_value = std::numeric_limits<int>::lowest();
     using TauIdDiscriminator = analysis::TauIdDiscriminator;
@@ -117,25 +116,15 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
 
     analysis::JetCollection jets_pt20;
     analysis::JetCollection jets_pt30;
-
     auto select_jets = [&](analysis::EventInfoBase* event_info) {
         jets_pt20.clear();
         jets_pt30.clear();
         if(!event_info) return;
 
-        if (run_period == analysis::Period::Run2016) {
-            jets_pt20 = event_info->SelectJets(20, 4.7,false,false,analysis::JetOrdering::Pt);
-            jets_pt30 = event_info->SelectJets(30, 4.7,false,false,analysis::JetOrdering::Pt);
-        }
-
-        if (run_period == analysis::Period::Run2017) {
-            jets_pt20 = event_info->SelectJets(20, 4.7,false,false,analysis::JetOrdering::Pt);
-            jets_pt30 = event_info->SelectJets(30, std::numeric_limits<double>::max(),false,false,
-                                               analysis::JetOrdering::Pt);
-        }
+        jets_pt20 = event_info->SelectJets(20, 4.7,false,false,analysis::JetOrdering::Pt);
+        jets_pt30 = event_info->SelectJets(30, std::numeric_limits<double>::max(),false,false, analysis::JetOrdering::Pt);
 
     };
-
     select_jets(&event);
     sync().mjj = COND_VAL(jets_pt20.size() >= 2, (jets_pt20.at(0).GetMomentum()
                + jets_pt20.at(1).GetMomentum()).M());
@@ -143,10 +132,8 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
                  - jets_pt20.at(1).GetMomentum().Eta());
     sync().jdphi = COND_VAL(jets_pt20.size() >= 2, TVector2::Phi_mpi_pi(jets_pt20.at(0).GetMomentum().Phi()
                  - jets_pt20.at(1).GetMomentum().Phi()));
-
     sync().njets = static_cast<int>(jets_pt30.size());
     sync().njetspt20 = static_cast<int>(jets_pt20.size());
-
     sync().jpt_1 = COND_VAL(jets_pt20.size() >= 1, jets_pt20.at(0).GetMomentum().Pt());
     sync().jeta_1 = COND_VAL(jets_pt20.size() >= 1, jets_pt20.at(0).GetMomentum().Eta());
     sync().jrawf_1 = COND_VAL(jets_pt20.size() >= 1, jets_pt20.at(0).GetMomentum().Phi());
@@ -155,7 +142,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
     sync().jeta_2 = COND_VAL(jets_pt20.size() >= 2, jets_pt20.at(1).GetMomentum().Eta());
     sync().jphi_2 = COND_VAL(jets_pt20.size() >= 2, jets_pt20.at(1).GetMomentum().Phi());
     sync().jrawf_2 = COND_VAL(jets_pt20.size() >= 2, jets_pt20.at(1)->rawf());
-
     sync().njets_vbf = static_cast<int>(jets_pt30.size());
     sync().isVBF = event.HasVBFjetPair();
     sync().jpt_vbf_1 = COND_VAL(event.HasVBFjetPair(), event.GetVBFJet(1).GetMomentum().Pt());
@@ -164,7 +150,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
     sync().jpt_vbf_2 = COND_VAL(event.HasVBFjetPair(), event.GetVBFJet(2).GetMomentum().Pt());
     sync().jeta_vbf_2 = COND_VAL(event.HasVBFjetPair(), event.GetVBFJet(2).GetMomentum().Eta());
     sync().jphi_vbf_2 = COND_VAL(event.HasVBFjetPair(), event.GetVBFJet(2).GetMomentum().Phi());
-
 
     sync().extramuon_veto = event->extramuon_veto;
     sync().extraelec_veto = event->extraelec_veto;
@@ -189,7 +174,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
                                         event.GetBJet(2)->resolution() * event.GetBJet(2).GetMomentum().E());
     sync().ht_other_jets = event.GetHT(false,true);
 
-
     // sync().kinfit_convergence = COND_VAL_INT(event.HasBjetPair() , event.GetKinFitResults().convergence);
     // sync().m_kinfit = COND_VAL(event.HasBjetPair() && event.GetKinFitResults().HasValidMass(),
     //                            event.GetKinFitResults().mass);
@@ -211,21 +195,19 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
     sync().mva_score_lm_320 = COND_VAL(mva_reader, mva_reader->Evaluate(analysis::mva_study::MvaReader::MvaKey{"mva_lmANkin", 320, 0}, &event));
     sync().mva_score_mm_400 = COND_VAL(mva_reader, mva_reader->Evaluate(analysis::mva_study::MvaReader::MvaKey{"mva_mmANkin", 400, 0}, &event));
     sync().mva_score_hm_650 = COND_VAL(mva_reader, mva_reader->Evaluate(analysis::mva_study::MvaReader::MvaKey{"mva_hmANkin", 650, 0}, &event));
-
     sync().deltaR_ll = static_cast<float>(ROOT::Math::VectorUtil::DeltaR(event.GetLeg(1).GetMomentum(), event.GetLeg(2).GetMomentum()));
-
     sync().nFatJets = static_cast<unsigned>(event.GetFatJets().size());
-    const auto fatJet = event.SelectFatJet(30, 0.4);
-    sync().hasFatJet = event.HasBjetPair() ? fatJet != nullptr : -1;
-    sync().fatJet_pt = COND_VAL(fatJet, fatJet->GetMomentum().Pt());
-    sync().fatJet_eta = COND_VAL(fatJet, fatJet->GetMomentum().Eta());
-    sync().fatJet_phi = COND_VAL(fatJet, fatJet->GetMomentum().Phi());
-    sync().fatJet_energy = COND_VAL(fatJet, fatJet->GetMomentum().E());
-    sync().fatJet_m_softDrop = COND_VAL(fatJet, (*fatJet)->m(ntuple::TupleFatJet::MassType::SoftDrop));
-    sync().fatJet_n_subjettiness_tau1 = COND_VAL(fatJet, (*fatJet)->jettiness(1));
-    sync().fatJet_n_subjettiness_tau2 = COND_VAL(fatJet, (*fatJet)->jettiness(2));
-    sync().fatJet_n_subjettiness_tau3 = COND_VAL(fatJet, (*fatJet)->jettiness(3));
-    sync().fatJet_n_subjets = COND_VAL_INT(fatJet, (*fatJet)->subJets().size());
+    // const auto fatJet = event.SelectFatJet(30, 0.4);
+    // sync().hasFatJet = event.HasBjetPair() ? fatJet != nullptr : -1;
+    // sync().fatJet_pt = COND_VAL(fatJet, fatJet->GetMomentum().Pt());
+    // sync().fatJet_eta = COND_VAL(fatJet, fatJet->GetMomentum().Eta());
+    // sync().fatJet_phi = COND_VAL(fatJet, fatJet->GetMomentum().Phi());
+    // sync().fatJet_energy = COND_VAL(fatJet, fatJet->GetMomentum().E());
+    // sync().fatJet_m_softDrop = COND_VAL(fatJet, (*fatJet)->m(ntuple::TupleFatJet::MassType::SoftDrop));
+    // sync().fatJet_n_subjettiness_tau1 = COND_VAL(fatJet, (*fatJet)->jettiness(1));
+    // sync().fatJet_n_subjettiness_tau2 = COND_VAL(fatJet, (*fatJet)->jettiness(2));
+    // sync().fatJet_n_subjettiness_tau3 = COND_VAL(fatJet, (*fatJet)->jettiness(3));
+    // sync().fatJet_n_subjets = COND_VAL_INT(fatJet, (*fatJet)->subJets().size());
 
     sync().topWeight = static_cast<Float_t>(event->weight_top_pt);
     sync().shapeWeight = static_cast<Float_t>(event->weight_pu * event->weight_bsm_to_sm * event->weight_dy
@@ -236,11 +218,9 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
     sync().leptontrigWeight = static_cast<Float_t>(event->weight_lepton_trig);
     sync().final_weight = static_cast<Float_t>(weight);
     //sync().dy_weight = static_cast<Float_t>(dy_weight);
-
     sync().lhe_n_b_partons = static_cast<int>(event->lhe_n_b_partons);
     sync().lhe_n_partons = static_cast<int>(event->lhe_n_partons);
     sync().lhe_HT = event->lhe_HT;
-
     sync().genJets_nTotal = event->genJets_nTotal;
     sync().genJets_nStored = static_cast<unsigned>(event->genJets_p4.size());
     sync().genJets_nStored_hadronFlavour_b = std::min<unsigned>(2, static_cast<unsigned>(
@@ -256,7 +236,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
         if(jet->hadronFlavour() == 5) ++sync().jets_nSelected_hadronFlavour_b;
         if(jet->hadronFlavour() == 4) ++sync().jets_nSelected_hadronFlavour_c;
     }
-
     //mva variables
     if(event.HasBjetPair()){
         using namespace ROOT::Math::VectorUtil;
@@ -270,7 +249,6 @@ void FillSyncTuple(analysis::EventInfoBase& event, htt_sync::SyncTuple& sync, an
         const auto& b2 = event.GetHiggsBB().GetSecondDaughter().GetMomentum();
 
         const auto& met = event.GetMET().GetMomentum();
-
         sync().pt_hbb = Hbb.Pt();
         sync().pt_l1l2 = (t1+t2).Pt();
         sync().pt_htautau = (Htt+met).Pt();
