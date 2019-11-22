@@ -66,12 +66,12 @@ public:
            }
 
             size_t matches_deep_flavour = calculateMatchesJets(event, JetOrdering::DeepFlavour);
-            calculateMatchesJets(event, JetOrdering::DeepCSV);
+            size_t matches_deep_csv = calculateMatchesJets(event, JetOrdering::DeepCSV);
             calculateMatchesJets(event, JetOrdering::Pt);
             calculateMatchesJets(event, JetOrdering::CSV);
 
             size_t matches_deep_tau = calculateMatchesTaus(event, TauIdDiscriminator::byDeepTau2017v2p1VSjet);
-            calculateMatchesTaus(event, TauIdDiscriminator::byIsolationMVArun2017v2DBoldDMwLT2017);
+            size_t matches_comb_iso_2017 = calculateMatchesTaus(event, TauIdDiscriminator::byIsolationMVArun2017v2DBoldDMwLT2017);
             calculateMatchesTaus(event, TauIdDiscriminator::byCombinedIsolationDeltaBetaCorr3Hits,false);
             calculateMatchesTaus(event, TauIdDiscriminator::byIsolationMVArun2v1DBoldDMwLT2016);
 
@@ -81,14 +81,24 @@ public:
             else
                 anaData.n("both_two_matches").Fill(0);
 
+            if(matches_deep_csv == 2 && matches_comb_iso_2017 == n_tautau_matches)
+                anaData.n("both_two_matches_old_baseline").Fill(1);
+            else
+                anaData.n("both_two_matches_old_baseline").Fill(0);
+
+
         }
         printStats(anaData.n("both_two_matches"), 2, "both matches");
-        printStats(anaData.jet_matches(ToString(JetOrdering::DeepFlavour)), 3, "DeepFlavour two matches");
-        printStats(anaData.lep_matches(ToString(TauIdDiscriminator::byDeepTau2017v2p1VSjet)), 2, "deepTau two matches");
+        printStats(anaData.n("both_two_matches_old_baseline"), 2, "both_two_matches_old_baseline matches");
+        printStats(anaData.jet_matches(ToString(JetOrdering::DeepFlavour)), 3, "DeepFlavour two matches ");
+        printStats(anaData.jet_matches(ToString(JetOrdering::DeepCSV)), 3, "DeepCSV two matches (DF)");
+        int tau_bin = args.channel() == Channel::TauTau ? 3 : 2;
+        printStats(anaData.lep_matches(ToString(TauIdDiscriminator::byDeepTau2017v2p1VSjet)), tau_bin, "deepTau two matches");
+        printStats(anaData.lep_matches(ToString(TauIdDiscriminator::byIsolationMVArun2017v2DBoldDMwLT2017)), tau_bin, "Comb iso two matches");
 
-        std::vector<TH1D> jet_histos = {anaData.jet_matches(ToString(JetOrdering::Pt)),anaData.jet_matches(ToString(JetOrdering::CSV)),
-                                         anaData.jet_matches(ToString(JetOrdering::DeepCSV)), anaData.jet_matches(ToString(JetOrdering::DeepFlavour))};
-        drawHistoTogether(jet_histos, {ToString(JetOrdering::Pt), ToString(JetOrdering::CSV), ToString(JetOrdering::DeepCSV), ToString(JetOrdering::DeepFlavour)} );
+        std::vector<TH1D> jet_histos = {anaData.jet_matches(ToString(JetOrdering::DeepFlavour)), anaData.jet_matches(ToString(JetOrdering::Pt)),anaData.jet_matches(ToString(JetOrdering::CSV)),
+                                         anaData.jet_matches(ToString(JetOrdering::DeepCSV))};
+        drawHistoTogether(jet_histos, {ToString(JetOrdering::DeepFlavour), ToString(JetOrdering::Pt), ToString(JetOrdering::CSV), ToString(JetOrdering::DeepCSV)} );
 
         std::vector<TH1D> lep_histos = {anaData.lep_matches(ToString(TauIdDiscriminator::byDeepTau2017v2p1VSjet)),
                                         anaData.lep_matches(ToString(TauIdDiscriminator::byCombinedIsolationDeltaBetaCorr3Hits)),
@@ -134,7 +144,7 @@ private:
     {
         auto ordered_jets = orderJets(event, jet_ordering);
 
-        const size_t n_max = std::min(static_cast<int>(ordered_jets.size()), 2);
+        const size_t n_max = std::min<size_t>(ordered_jets.size(), 2);
         size_t count = 0;
         for(size_t n = 0; n < n_max; ++n) {
             const size_t index = ordered_jets.at(n).index;
@@ -167,9 +177,17 @@ private:
         std::vector<analysis::jet_ordering::JetInfo<LorentzVector>> jet_info_vector;
         BTagger bTagger(Parse<analysis::Period>(args.period()) ,jet_ordering);
 
-        for(size_t jet_index = 0; jet_index < event.jets_p4.size(); ++jet_index)
-            jet_info_vector.emplace_back(LorentzVectorE(event.jets_p4.at(jet_index)), jet_index, bTagger.BTag(event,jet_index));
-
+        for(size_t jet_index = 0; jet_index < event.jets_p4.size(); ++jet_index) {
+            bool has_overlap = false;
+            for(size_t tau_index = 0; tau_index < event.lep_p4.size() && !has_overlap; ++tau_index) {
+                if(event.lep_genTauIndex.at(tau_index) < 0) continue;
+                has_overlap =  ROOT::Math::VectorUtil::DeltaR(event.lep_p4.at(tau_index), event.jets_p4.at(jet_index)) <0.5;
+            }
+            if(!has_overlap)
+                jet_info_vector.emplace_back(LorentzVectorE(event.jets_p4.at(jet_index)), jet_index,
+                                             bTagger.BTag(event,jet_index, UncertaintySource::None,
+                                             UncertaintyScale::Central, true));
+        }
         return jet_ordering::OrderJets(jet_info_vector, true, cuts::btag_2017::pt, cuts::btag_2017::eta);
     }
 

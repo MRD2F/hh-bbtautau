@@ -97,7 +97,7 @@ public:
             canvas.Print((args.outputFile() + ".pdf[").c_str());
             canvas.Draw();
 
-            sample_type = Parse<SampleType>(args.sample_type());
+            // sample_type = Parse<SampleType>(args.sample_type());
         }
 
     void CreateEfficiency(const TH1& passed, const TH1& total, const std::string& channel,
@@ -374,7 +374,7 @@ public:
             // Sum 4-momentum of the gen b jets used for the match
             for(size_t jet_index = 0; jet_index < 2; ++jet_index){
                 for(size_t particle_index = 0; particle_index < gen_jets.at(jet_index).size(); ++particle_index)
-                    HH_Gen_Event.b_jets[jet_index] += gen_jets.at(jet_index).at(particle_index)->momentum;      
+                    HH_Gen_Event.b_jets[jet_index] += gen_jets.at(jet_index).at(particle_index)->momentum;
                 HH_Gen_Event.h_bb_vis += HH_Gen_Event.b_jets[jet_index];
             }
 
@@ -629,7 +629,7 @@ public:
                         (*new_tuple)().jets_genJetIndex.push_back(matched_gen_b);
 
                     }
-                    (*new_tuple)().sample_type = static_cast<int>(sample_type);
+                    // (*new_tuple)().sample_type = static_cast<int>(sample_type);
                     (*new_tuple)().spin = args.spin();
                     (*new_tuple)().mass_point = args.mass_point();
                     (*new_tuple)().node = args.node();
@@ -735,6 +735,7 @@ private:
     Arguments args;
     std::shared_ptr<TFile> output;
     std::shared_ptr<TFile> new_output_file;
+    // SampleType sample_type;
     GenStudyHist anaData;
     TCanvas canvas;
 };
