@@ -96,7 +96,7 @@ class BayesianOptimizationCustom:
                 if params[self.params_typed_range[key]['depends_on'] ] == 0:
                     params[key] = self.params_typed_range[key]['range'][0]
 
-    def LoadPoints(self, probed_points_target_output_prev, probed_points_opt_output_prev):
+    def LoadPoints(self, probed_points_target_output_prev, probed_points_opt_output_prev, bo_prev):
         target_points = []
         for line in open(probed_points_target_output_prev, 'r'):
             target_points.append(json.loads(line))
@@ -107,6 +107,13 @@ class BayesianOptimizationCustom:
 
         for p in target_points:
             self.UpdateDependencies(p['params'])
+            const_match = True
+            for key, value in self.const_params.items():
+                if p["params"][key] != value:
+                    const_match = False
+                    break
+            if not const_match:
+                continue
             result = self.FindResult(p['params'], True)
             # if has not been tested before
             if result is not None:
@@ -116,16 +123,29 @@ class BayesianOptimizationCustom:
                 f.write(json.dumps(p) + '\n')
 
         for p in opt_points:
-            result = self.FindResult(p['params'], False)
+            p_fixed = { 'target': p['target'], 'params': {} }
+            for key, value in p['params'].items():
+                if key not in self.const_params:
+                    p_fixed['params'][key] = value
+            if bo_prev is not None:
+                p_target = bo_prev.TransformParams(p['params'])
+                const_match = True
+                for key, value in self.const_params.items():
+                    if p_target[key] != value:
+                        const_match = False
+                        break
+                if not const_match:
+                    continue
+            result = self.FindResult(p_fixed['params'], False)
             # if has not been tested before
             if result is not None:
                 raise Exception('opt point not allowed: \n{}'.format(json.dumps(p['params'], indent=4)))
-            self.probed_points_opt.append(p)
+            self.probed_points_opt.append(p_fixed)
 
             with open(self.probed_points_opt_output, 'a') as f:
-                f.write(json.dumps(p) + '\n')
+                f.write(json.dumps(p_fixed) + '\n')
 
-            self.optimizer.register(params=p['params'],target=p['target'])
+            self.optimizer.register(params=p_fixed['params'],target=p_fixed['target'])
 
     def MaximizeStep(self, p, is_target_point=False):
         if is_target_point:
@@ -169,10 +189,10 @@ class BayesianOptimizationCustom:
 
         return has_been_tested
 
-    def maximize(self, n_iter, kappa, acq='ucb', xi=0.0):
+    def maximize(self, n_iter, kappa, opt_prev, acq='ucb', xi=0.0):
 
         # if args.load_points == True:
-        self.LoadPoints('target_{}'.format(self.prev_point), 'opt_{}'.format(self.prev_point))
+        self.LoadPoints('target_{}'.format(self.prev_point), 'opt_{}'.format(self.prev_point), opt_prev)
 
         if self.params_init_probe_json:
             #Probe with all known good points
@@ -195,6 +215,7 @@ class BayesianOptimizationCustom:
         # for each param var up and down and try with edges parameter
         for key, values in self.params_typed_range.items():
             #Has some dependency wiht other variables
+            if key in self.const_params: continue
             if 'depends_on' in self.params_typed_range[key] and p_target_max[self.params_typed_range[key]['depends_on']] == 0: continue
             new_target_point = copy.deepcopy(p_target_max)
             for v in values['range']:

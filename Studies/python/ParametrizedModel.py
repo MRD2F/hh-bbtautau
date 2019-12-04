@@ -1,3 +1,4 @@
+
 # Definition of the model of the signal selection NN
 # This file is part of https://github.com/hh-italian-group/hh-bbtautau.
 
@@ -25,12 +26,12 @@ class StdLayer(Layer):
         self.vars_mean = tf.constant(self.vars_mean, dtype=tf.float32)
         self.vars_std = tf.constant(self.vars_std, dtype=tf.float32)
         self.vars_apply = tf.constant(self.vars_apply, dtype=tf.bool)
-        self.n_sigmas = n_sigmas
+        self.n_sigmas = tf.constant(n_sigmas, dtype=tf.float32)
 
         super(StdLayer, self).__init__(**kwargs)
 
-    def build(self, input_shape):
-        super(StdLayer, self).build(input_shape)
+    #def build(self, input_shape):
+    #    super(StdLayer, self).build(input_shape)
 
     def call(self, X):
         Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
@@ -40,8 +41,8 @@ class ScaleLayer(Layer):
     def __init__(self, file_name, var_pos, interval_to_scale, **kwargs):
         with open(file_name) as json_file:
             data_json = json.load(json_file)
-        self.a = interval_to_scale[0]
-        self.b = interval_to_scale[1]
+        self.a = tf.constant(interval_to_scale[0], dtype=tf.float32)
+        self.b = tf.constant(interval_to_scale[1], dtype=tf.float32)
         n_vars = len(var_pos)
         self.vars_max = [1] * n_vars
         self.vars_min = [1] * n_vars
@@ -58,8 +59,8 @@ class ScaleLayer(Layer):
 
         super(ScaleLayer, self).__init__(**kwargs)
 
-    def build(self, input_shape):
-        super(ScaleLayer, self).build(input_shape)
+    #def build(self, input_shape):
+    #    super(ScaleLayer, self).build(input_shape)
 
     def call(self, X):
         Y = tf.clip_by_value( (self.y * ( X - self.vars_min))  + self.a , self.a, self.b)
@@ -69,7 +70,6 @@ class ScaleLayer(Layer):
 class HHModel(Model):
     def __init__(self, var_pos, mean_std_json, min_max_json, params):
         super(HHModel, self).__init__()
-
         self.normalize = StdLayer(mean_std_json, var_pos, 5, name='std_layer')
         self.scale = ScaleLayer(min_max_json, var_pos, [-1,1], name='scale_layer')
 
@@ -114,7 +114,7 @@ class HHModel(Model):
                                                        name='dropout_dense_pre_{}'.format(i)))
 
         self.final_dense = TimeDistributed(Dense(1, activation="sigmoid"), name='output')
-
+    
     def call(self, inputs):
         x = self.normalize(inputs)
         x = self.scale(x)
@@ -122,7 +122,7 @@ class HHModel(Model):
 
         x = x[:, :, 1:]
         for i in range(len(self.dense_pre)):
-            x = self.dense_pre[i](x, mask=mask)
+            x = self.dense_pre[i](x)
             if len(self.batch_norm_dense_pre) > i:
                 x = self.batch_norm_dense_pre[i](x)
             if len(self.dropout_dense_pre) > i:
@@ -140,12 +140,12 @@ class HHModel(Model):
                 x = self.concatenate[i]([last_pre, x])
 
         for i in range(len(self.dense_post)):
-            x = self.dense_post[i](x, mask=mask)
+            x = self.dense_post[i](x)
             if len(self.batch_norm_dense_post) > i:
                 x = self.batch_norm_dense_post[i](x)
             if len(self.dropout_dense_post) > i:
                 x = self.dropout_dense_post[i](x)
-        x = self.final_dense(x, mask=mask)
+        x = self.final_dense(x)
 
         input_shape = tf.shape(inputs)
         x = tf.reshape(x, shape=(input_shape[0], input_shape[1]))

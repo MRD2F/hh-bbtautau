@@ -1,7 +1,15 @@
 [
-    {"num_den_layers_pre" : 0 , "num_units_den_layers_pre": 15, "dropout_rate_den_layers_pre":  0,
-        "num_den_layers_post": 0, "num_units_den_layers_post": 15, "dropout_rate_den_layers_post": 0,
-        "num_rnn_layers": 5, "num_units_rnn_layer":74, "activation_dense_pre": "sigmoid", "activation_dense_post": "sigmoid",
-        "dropout_rate_rnn": 0.15, "learning_rate_exp":-3, "optimizers": "Adam", "rnn_type": "LSTM", "batch_size": 100
+    {   "num_den_layers_pre" : 0 , "num_units_den_layers_pre": 15, "dropout_rate_den_layers_pre":  0,
+        "num_den_layers_post": 5, "num_units_den_layers_post": 30, "dropout_rate_den_layers_post": 0,
+        "rnn_type": "LSTM", "num_rnn_layers": 5, "num_units_rnn_layer": 75, "dropout_rate_rnn": 0,
+        "activation_dense_pre": "sigmoid", "activation_dense_post": "sigmoid",
+        "learning_rate_exp": -3, "optimizers": "Adam", "batch_size": 100
+    },
+    {   "num_den_layers_pre" : 2 , "num_units_den_layers_pre": 30, "dropout_rate_den_layers_pre":  0,
+        "num_den_layers_post": 5, "num_units_den_layers_post": 30, "dropout_rate_den_layers_post": 0,
+        "rnn_type": "LSTM", "num_rnn_layers": 3, "num_units_rnn_layer": 75, "dropout_rate_rnn": 0,
+        "activation_dense_pre": "sigmoid", "activation_dense_post": "sigmoid",
+        "learning_rate_exp": -3, "optimizers": "Adam", "batch_size": 100
     }
 ]
+

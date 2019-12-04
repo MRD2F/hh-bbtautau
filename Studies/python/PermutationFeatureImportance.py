@@ -1,7 +1,3 @@
-# Evaluate the importance of the training variables using the Permutation Feature Importance method
-# This file is part of https://github.com/hh-italian-group/hh-bbtautau.
-
-
 import tensorflow as tf
 gpus = tf.config.experimental.list_physical_devices('GPU')
 tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -16,29 +12,27 @@ import numpy as np
 
 import InputsProducer
 import ParametrizedModel as pm
-import BayesianOptimizationCustom as bo
 from CalculateWeigths import CreateSampleWeigts, CrossCheckWeights
-
-
+# import Optimizer as op
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-w", "--weights")
 parser.add_argument("-p", "--parity", type=int)
-parser.add_argument("-training_variables", "--training_variables")
-parser.add_argument("-params_json", "--params_json")
 parser.add_argument("-f", "--file", nargs='+')
-
 args = parser.parse_args()
 
+# def CreateModel(weights):
 file_name = pm.ListToVector(args.file)
-with open(params_json) as f:
+with open('../config/params.json') as f:
     params = json.load(f)
 
-data = InputsProducer.CreateRootDF(file_name, args.parity, False, True)
-X, Y, Z, var_pos, var_pos_z, var_name = InputsProducer.CreateXY(data, args.training_variables)
+data = InputsProducer.CreateRootDF(file_name, args.parity, False)
+X, Y, Z, var_pos, var_pos_z, var_name = InputsProducer.CreateXY(data)
+
+params = pm.TransformParams(params)
 
 model = pm.HHModel(var_pos, '../config/mean_std_red.json', '../config/min_max_red.json', params)
-opt = getattr(tf.keras.optimizers, params['optimizers'])(learning_rate=10 ** params['learning_rate_exp'])
+opt = tf.keras.optimizers.Adam(learning_rate=params['learning_rate'])
 model.compile(loss='binary_crossentropy',
               optimizer=opt,
               weighted_metrics=[pm.sel_acc_2, pm.sel_acc_3, pm.sel_acc_4])

@@ -58,7 +58,7 @@ def PerformTraining(file_name, n_epoch, params):
     save_best_only =  tf.keras.callbacks.ModelCheckpoint(filepath='{}_par{}_best_weights.h5'.format(args.output, args.parity),
                                                          monitor='val_sel_acc_2',  mode='max', save_best_only=True, verbose=1)
 
-    model.fit(X, Y, sample_weight=w, validation_split=args.validation_split, epochs=args.n_epoch, batch_size=params['batch_size'],
+    model.fit(X, Y, validation_split=args.validation_split, epochs=args.n_epoch, batch_size=params['batch_size'],
               callbacks=[csv_logger, save_best_only, early_stop],verbose=2)
 
     model.save_weights('{}_par{}_final_weights.h5'.format(args.output, args.parity))
