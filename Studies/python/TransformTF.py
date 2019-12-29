@@ -49,6 +49,7 @@ print(model.summary())
 
 model.load_weights(args.weights, by_name=True)
 
+model.save_weights('model_weights_tf1.h5')
 def node_names(nodes):
     return [ node.name.split(':')[0] for node in nodes ]
 
@@ -58,15 +59,17 @@ print(model.outputs)
 
 with K.get_session() as sess:
     const_graph = convert_variables_to_constants(sess, sess.graph.as_graph_def(), output_nodes)
-    # final_graph = const_graph
-    transforms = [
-        "strip_unused_nodes",
-        # "remove_nodes(op=Identity, op=CheckNumerics)",
-        "fold_constants(ignore_errors=true)",
-        "fold_batch_norms",
-    ]
-    final_graph = TransformGraph(const_graph, input_nodes, output_nodes, transforms)
+    final_graph = const_graph
+    # transforms = [
+    #     "strip_unused_nodes",
+    #     # "remove_nodes(op=Identity, op=CheckNumerics)",
+    #     "fold_constants(ignore_errors=true)",
+    #     "fold_batch_norms",
+    # ]
+    # final_graph = TransformGraph(const_graph, input_nodes, output_nodes, transforms)
 
+# with K.get_session() as sess:
+#    final_graph = sess.graph
 out_file= '{}.pb'.format(args.output)
 out_dir = '.'
 write_graph(final_graph, out_dir, out_file, as_text=False)
