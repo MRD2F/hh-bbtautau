@@ -226,10 +226,7 @@ private:
                 for(Channel channel : setup.channels) {
                     const std::string treeName = ToString(channel);
 
-                    using FullEventId = std::tuple<EventIdentifier, EventEnergyScale>;
-                    using FullEventIdSet = std::set<FullEventId>;
-
-                    FullEventIdSet processed_events;
+                    std::set<EventIdentifier> processed_events;
                     for(size_t n = 0; n < desc_iter->inputs.size(); ++n) {
                         auto file = inputFiles.at(n);
                         std::cout << "\t\t" << desc_iter->inputs.at(n) << ":" << treeName << std::endl;
@@ -238,10 +235,8 @@ private:
                             processed_events.clear();
                         if((n == 0 || !desc_iter->first_input_is_ref)
                                 && (desc_iter->input_is_partial.empty() || !desc_iter->input_is_partial.at(n))
-                                && weighting_mode.count(mc_corrections::WeightType::PileUp)
-                                && setup.period == Period::Run2017) {
+                                && weighting_mode.count(mc_corrections::WeightType::PileUp)) {
                             auto pile_up_weight = eventWeights_HH->GetProviderT<mc_corrections::PileUpWeightEx>(mc_corrections::WeightType::PileUp);
-
                             auto dataset_name = RemoveFileExtension(desc_iter->inputs.at(n));
                             pile_up_weight->SetActiveDataset(dataset_name);
                         }
@@ -254,7 +249,6 @@ private:
                                       << desc_iter->inputs.at(n) << "'." << std::endl;
                         }
                         if(!tuple) continue;
-
                         std::vector<std::shared_ptr<cache_tuple::CacheTuple>> cacheTuples;
                         for(unsigned h = 0; h < inputCacheFiles.at(n).size(); ++h){
                             auto cacheFile = inputCacheFiles.at(n).at(h);
@@ -267,16 +261,13 @@ private:
                                 cacheTuples.push_back(nullptr);
                             }
                         }
-
                         const Long64_t n_entries = tuple->GetEntries();
                         for(Long64_t current_entry = 0; current_entry < n_entries; ++current_entry) {
                             tuple->GetEntry(current_entry);
                             const Event& event = tuple->data();
-                            const FullEventId fullId{EventIdentifier(event.run, event.lumi, event.evt),
-                                                     static_cast<EventEnergyScale>(event.eventEnergyScale)};
+                            const EventIdentifier fullId(event.run, event.lumi, event.evt);
                             if(processed_events.count(fullId)) {
-                                std::cout << "WARNING: duplicated event " << std::get<EventIdentifier>(fullId) << " "
-                                          << std::get<EventEnergyScale>(fullId) << std::endl;
+                                std::cout << "WARNING: duplicated event " << fullId << std::endl;
                                 continue;
                             }
                             processed_events.insert(fullId);
@@ -305,7 +296,6 @@ private:
                         }
                     }
                 }
-
                 if(std::next(desc_iter) == job.files.end() || !job.ProduceMergedOutput()) {
                     processQueue.SetAllDone(true);
                     process_thread->join();
@@ -373,7 +363,7 @@ private:
     ntuple::ProdSummary GetSummaryWithWeights(const FileDescriptor& desc, const std::shared_ptr<TFile>& file,
                                               size_t file_index)
     {
-        if(weighting_mode.count(mc_corrections::WeightType::PileUp) && setup.period == Period::Run2017){
+        if(weighting_mode.count(mc_corrections::WeightType::PileUp)) {
             auto pile_up_weight = eventWeights_HH->GetProviderT<mc_corrections::PileUpWeightEx>(
                                                                 mc_corrections::WeightType::PileUp);
             auto dataset_name = RemoveFileExtension(desc.inputs.at(file_index));
