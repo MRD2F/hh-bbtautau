@@ -13,7 +13,7 @@ void SetupEntryReader::EndEntry()
     CheckReadParamCounts("period", 1, Condition::less_equal);
     CheckReadParamCounts("mode", 1, Condition::less_equal);
     CheckReadParamCounts("btag_wp", 1, Condition::less_equal);
-    CheckReadParamCounts("cachePath", 0, Condition::greater_equal);
+    CheckReadParamCounts("use_cache", 1, Condition::less_equal);
     CheckReadParamCounts("common_weights", 1, Condition::less_equal);
     CheckReadParamCounts("n_splits", 1, Condition::less_equal);
     CheckReadParamCounts("split_seed", 1, Condition::less_equal);
@@ -22,6 +22,7 @@ void SetupEntryReader::EndEntry()
     CheckReadParamCounts("apply_mass_cut", 1, Condition::less_equal);
     CheckReadParamCounts("apply_charge_cut", 1, Condition::less_equal);
     CheckReadParamCounts("apply_bb_cut", 1, Condition::less_equal);
+    CheckReadParamCounts("apply_tau_iso", 1, Condition::less_equal);
     CheckReadParamCounts("keep_genJets", 1, Condition::less_equal);
     CheckReadParamCounts("keep_genParticles", 1, Condition::less_equal);
     CheckReadParamCounts("keep_MET_cov",1,Condition::less_equal);
@@ -41,7 +42,7 @@ void SetupEntryReader::ReadParameter(const std::string& /*param_name*/, const st
     ParseEntry("period", current.period);
     ParseEntry("mode", current.mode);
     ParseEntry("btag_wp", current.btag_wp);
-    ParseEntry("cachePath", current.cachePaths);
+    ParseEntry("use_cache", current.use_cache);
     ParseEntryList("common_weights", current.common_weights);
     ParseEntry("n_splits", current.n_splits);
     ParseEntry("split_seed", current.split_seed);
@@ -50,6 +51,7 @@ void SetupEntryReader::ReadParameter(const std::string& /*param_name*/, const st
     ParseEntry("apply_mass_cut", current.apply_mass_cut);
     ParseEntry("apply_charge_cut", current.apply_charge_cut);
     ParseEntry("apply_bb_cut", current.apply_bb_cut);
+    ParseEntry("apply_tau_iso", current.apply_tau_iso);
     ParseEntry("keep_genJets", current.keep_genJets);
     ParseEntry("keep_genParticles", current.keep_genParticles);
     ParseEntry("keep_MET_cov",current.keep_MET_cov);

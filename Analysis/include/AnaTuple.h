@@ -26,20 +26,25 @@ namespace analysis {
     VAR(bool, has_2jets) /* has 2 jets */ \
     VAR(double, weight) /* weight */ \
     VAR(float, mva_score) /* mva score */ \
-    VAR_LIST(float, m_ttbb, m_ttbb_kinfit, chi2_kinFit, m_sv, MT2, mt_tot, mt_1, mt_2, deta_hbbhtautau, dphi_hbbhtautau, m_tt_vis, \
+    VAR(ULong64_t, evt)  /* event */ \
+    VAR_LIST(float, pt_sv, pt_sv_error, eta_sv, eta_sv_error, phi_sv, phi_sv_error, m_sv, m_sv_error, \
+             mt_sv, mt_sv_error)  /* SVFit  p4 */\
+    VAR_LIST(float, m_ttbb, m_ttbb_kinfit, chi2_kinFit, MT2, mt_tot, mt_1, mt_2, deta_hbbhtautau, dphi_hbbhtautau, m_tt_vis, \
              pt_H_tt, eta_H_tt, phi_H_tt, pt_H_tt_MET, iso_1,iso_2, deepTau_vs_e_2, deepTau_vs_mu_2, \
-	           deepTau_vs_jet_2, tauId_default, \
+	         deepTau_vs_jet_2, tauId_default, \
              dR_l1l2, abs_dphi_l1MET, dphi_htautauMET, dR_l1l2MET, dR_l1l2Pt_htautau, mass_l1l2MET, \
              pt_l1l2MET, MT_htautau, \
              npv, MET, phiMET, pt_MET, m_bb, pt_H_bb, csv_b1, deepcsv_b1, csv_b2, \
              deepcsv_b2, costheta_METhbb, dR_b1b2, dR_b1b2_boosted, HT_otherjets, mass_top1, mass_top2, p_zeta, \
              p_zetavisible, HT_total, HT_otherjets_gen, HT_total_gen, n_selected_gen_jets, n_selected_gen_bjets, \
              n_selected_gen_notbjets, genJets_nTotal, jets_nTotal_hadronFlavour_b, jets_nTotal_hadronFlavour_c, \
-	           gen_match_1, gen_match_2) \
+	         gen_match_1, gen_match_2, dR_lj) \
+    VAR_LIST(UInt_t, run, lumi) \
     VAR_LIST(float, n_jets, n_jets_pu, n_jets_eta24, n_jets_eta24_pu, n_jets_eta24_eta5, n_jets_eta24_eta5_pu) \
     VAR_LIST(float, pt_1,eta_1, phi_1, m_1, pt_2, eta_2, phi_2, m_2, pt_b1, eta_b1, phi_b1, m_b1, \
              pt_b2, eta_b2, phi_b2, m_b2, pt_VBF_1, eta_VBF_1, phi_VBF_1, m_VBF_1, \
-             pt_VBF_2, eta_VBF_2, phi_VBF_2, m_VBF_2) \
+             pt_VBF_2, eta_VBF_2, phi_VBF_2, m_VBF_2, deep_flavour_b1, deep_flavour_b2, deep_flavour_VBF_1, \
+             deep_flavour_VBF_2 ) \
     /**/
 
 #define VAR(type, name) DECLARE_BRANCH_VARIABLE(type, name)
@@ -79,9 +84,9 @@ public:
     using Range = ::analysis::Range<double>;
     using RangeMap = std::map<SelectionCut, Range>;
 
-    AnaTupleWriter(const std::string& file_name, Channel channel, bool _runKinFit, bool _runSVfit);
+    AnaTupleWriter(const std::string& file_name, Channel channel, bool _runKinFit, bool _runSVfit, bool _allow_calc_svFit);
     ~AnaTupleWriter();
-    void AddEvent(EventInfoBase& event, const DataIdMap& dataIds);
+    void AddEvent(EventInfo& event, const DataIdMap& dataIds);
 
 private:
     std::shared_ptr<TFile> file;
@@ -89,6 +94,7 @@ private:
     AnaAuxTuple aux_tuple;
     bool runKinFit;
     bool runSVfit;
+    bool allow_calc_svFit;
     DataIdBiMap known_data_ids;
     RangeMap mva_ranges;
 };

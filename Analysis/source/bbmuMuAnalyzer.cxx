@@ -7,61 +7,30 @@ namespace analysis {
 
 class bbmumuAnalyzer : public BaseEventAnalyzer {
 public:
-    using HiggsBBCandidate = EventInfoBase::HiggsBBCandidate;
+    using HiggsBBCandidate = EventInfo::HiggsBBCandidate;
 
     bbmumuAnalyzer(const AnalyzerArguments& _args) : BaseEventAnalyzer(_args, Channel::MuMu) {}
 
 protected:
-    virtual EventRegion DetermineEventRegion(EventInfoBase& eventInfoBase, EventCategory /*eventCategory*/) override
+    virtual EventRegion DetermineEventRegion(EventInfo& eventInfoBase, EventCategory /*eventCategory*/) override
     {
-        static const std::map<DiscriminatorWP,double> working_points = {
-            {DiscriminatorWP::VVLoose,2.0}, {DiscriminatorWP::Medium,0.15}
-        };
 
-        const LepCandidate& muon1 = eventInfoBase.GetFirstLeg();
-        const LepCandidate& muon2 = eventInfoBase.GetSecondLeg();
-//        const HiggsBBCandidate& jets  = event.GetHiggsBB();
-        if(muon1.GetMomentum().Pt() < 20 || muon2.GetMomentum().Pt() < 20) return EventRegion::Unknown();
+        const std::array<const LepCandidate*, 2> muons = { &eventInfoBase.GetLeg(1), &eventInfoBase.GetLeg(2) };
+        std::array<EventRegion, 2> regions;
+        const bool os = muons.at(0)->GetCharge() * muons.at(1)->GetCharge() == -1;
 
-        EventRegion region_muon1, region_muon2;
-        const bool os = !ana_setup.apply_os_cut || muon1.GetCharge() * muon2.GetCharge() == -1;
-        region_muon1.SetCharge(os);
-        region_muon2.SetCharge(os);
-
-        for(auto wp = working_points.rbegin(); wp != working_points.rend(); ++wp) {
-            if(muon1.GetIsolation() < wp->second) {
-                region_muon1.SetLowerIso(wp->first);
-                if(wp != working_points.rbegin())
-                    region_muon1.SetUpperIso((--wp)->first);
-                break;
-            }
+        for(size_t n = 0; n < muons.size(); ++n) {
+            if(!SetRegionIsoRange(*muons.at(n), regions.at(n)))
+                return EventRegion::Unknown();
+            regions.at(n).SetCharge(os);
         }
 
-        for(auto wp = working_points.rbegin(); wp != working_points.rend(); ++wp) {
-            if(muon2.GetIsolation() < wp->second) {
-                region_muon2.SetLowerIso(wp->first);
-                if(wp != working_points.rbegin())
-                    region_muon2.SetUpperIso((--wp)->first);
-                break;
-            }
-        }
-
-        //region.SetLowerIso(DiscriminatorWP::Medium);
-        bool muon1_ex=false;
-        bool muon2_ex=false;
-        if(muon1.GetIsolation() > 0.15 && muon1.GetIsolation() < 0.3) muon1_ex=true;
-        if(muon2.GetIsolation() > 0.15 && muon2.GetIsolation() < 0.3) muon2_ex=true;
-        if(muon1_ex || muon2_ex) return EventRegion::Unknown();
-
-        if(!region_muon1.HasLowerIso() || !region_muon2.HasLowerIso()) return EventRegion::Unknown();
-        if(region_muon1.GetLowerIso() >= DiscriminatorWP::Medium) return region_muon2;
-        if(region_muon2.GetLowerIso() >= DiscriminatorWP::Medium) return region_muon1;
+        if(regions.at(0).GetLowerIso() >= DiscriminatorWP::Medium) return regions.at(1);
+        if(regions.at(1).GetLowerIso() >= DiscriminatorWP::Medium) return regions.at(0);
         return EventRegion::Unknown();
-
-        //return region;
     }
 
-    virtual EventSubCategory DetermineEventSubCategory(EventInfoBase& event, const EventCategory& /*category*/,
+    virtual EventSubCategory DetermineEventSubCategory(EventInfo& event, const EventCategory& /*category*/,
                                                        std::map<SelectionCut, double>& /*mva_scores*/) override
     {
         double mass_muMu = event.GetHiggsTTMomentum(false).M();
@@ -90,17 +59,23 @@ protected:
         sub_category.SetCutResult(SelectionCut::medPtNLO, event.GetHiggsTTMomentum(false).Pt() > 40 &&
                                                         event.GetHiggsTTMomentum(false).Pt() <= 100);
         sub_category.SetCutResult(SelectionCut::highPtNLO, event.GetHiggsTTMomentum(false).Pt() > 100);
-        sub_category.SetCutResult(SelectionCut::vlowPtLO, event.GetHiggsTTMomentum(false).Pt() <= 10);
-        sub_category.SetCutResult(SelectionCut::lowPtLO, event.GetHiggsTTMomentum(false).Pt() > 10 &&
-                                                        event.GetHiggsTTMomentum(false).Pt() <= 30);
-        sub_category.SetCutResult(SelectionCut::medPt1LO, event.GetHiggsTTMomentum(false).Pt() > 30 &&
-                                                        event.GetHiggsTTMomentum(false).Pt() <= 50);
-        sub_category.SetCutResult(SelectionCut::medPt2LO, event.GetHiggsTTMomentum(false).Pt() > 50 &&
-                                                        event.GetHiggsTTMomentum(false).Pt() <= 100);
-        sub_category.SetCutResult(SelectionCut::highPtLO, event.GetHiggsTTMomentum(false).Pt() > 100 &&
-                                                        event.GetHiggsTTMomentum(false).Pt() <= 200);
-        sub_category.SetCutResult(SelectionCut::vhighPtLO, event.GetHiggsTTMomentum(false).Pt() > 200);
-        sub_category.SetCutResult(SelectionCut::mtt, mass_muMu > 60);
+        sub_category.SetCutResult(SelectionCut::vlowPtLO, ana_setup.pt_sel_bins.size() > 0 &&
+                                                           event.GetHiggsTTMomentum(false).Pt() <= ana_setup.pt_sel_bins.at(0));
+        sub_category.SetCutResult(SelectionCut::lowPtLO, ana_setup.pt_sel_bins.size() > 1 &&
+                                                        (event.GetHiggsTTMomentum(false).Pt() > ana_setup.pt_sel_bins.at(0) &&
+                                                        event.GetHiggsTTMomentum(false).Pt() <= ana_setup.pt_sel_bins.at(1)));
+        sub_category.SetCutResult(SelectionCut::medPt1LO, ana_setup.pt_sel_bins.size() > 2 &&
+                                                        (event.GetHiggsTTMomentum(false).Pt() > ana_setup.pt_sel_bins.at(1) &&
+                                                        event.GetHiggsTTMomentum(false).Pt() <= ana_setup.pt_sel_bins.at(2)));
+        sub_category.SetCutResult(SelectionCut::medPt2LO, ana_setup.pt_sel_bins.size() > 3 &&
+                                                        (event.GetHiggsTTMomentum(false).Pt() > ana_setup.pt_sel_bins.at(2) &&
+                                                        event.GetHiggsTTMomentum(false).Pt() <= ana_setup.pt_sel_bins.at(3)));
+        sub_category.SetCutResult(SelectionCut::highPtLO, ana_setup.pt_sel_bins.size() > 4 &&
+                                                        (event.GetHiggsTTMomentum(false).Pt() > ana_setup.pt_sel_bins.at(3) &&
+                                                        event.GetHiggsTTMomentum(false).Pt() <= ana_setup.pt_sel_bins.at(4)));
+        sub_category.SetCutResult(SelectionCut::vhighPtLO, ana_setup.pt_sel_bins.size() > 4 &&
+                                                        event.GetHiggsTTMomentum(false).Pt() > ana_setup.pt_sel_bins.at(4));
+        sub_category.SetCutResult(SelectionCut::mtt, mass_muMu > 50);
 
         return sub_category;
     }

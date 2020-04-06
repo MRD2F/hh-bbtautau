@@ -6,9 +6,10 @@ This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 namespace analysis {
 namespace bbtautau {
 
-AnaTupleWriter::AnaTupleWriter(const std::string& file_name, Channel channel, bool _runKinFit, bool _runSVfit) :
+AnaTupleWriter::AnaTupleWriter(const std::string& file_name, Channel channel, bool _runKinFit, bool _runSVfit,
+                               bool _allow_calc_svFit) :
     file(root_ext::CreateRootFile(file_name)), tuple(ToString(channel), file.get(), false),
-    aux_tuple(file.get(), false), runKinFit(_runKinFit), runSVfit(_runSVfit)
+    aux_tuple(file.get(), false), runKinFit(_runKinFit), runSVfit(_runSVfit), allow_calc_svFit(_allow_calc_svFit)
 {
 }
 
@@ -29,7 +30,7 @@ AnaTupleWriter::~AnaTupleWriter()
     tuple.Write();
 }
 
-void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataIdMap& dataIds)
+void AnaTupleWriter::AddEvent(EventInfo& event, const AnaTupleWriter::DataIdMap& dataIds)
 {
     using namespace ROOT::Math::VectorUtil;
     static constexpr float def_val = std::numeric_limits<float>::lowest();
@@ -57,12 +58,35 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
     tuple().weight = def_val;
     tuple().mva_score = def_val;
     tuple().has_2jets = event.HasBjetPair();
-    tuple().m_sv = runSVfit ? static_cast<float>(event.GetHiggsTTMomentum(true).M()) : def_val;
+    tuple().run = event->run;
+    tuple().lumi = event->lumi;
+    tuple().evt = event->evt;
 
+    tuple().m_sv = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                   static_cast<float>(event.GetHiggsTTMomentum(true,allow_calc_svFit).M()) : def_val;
+     tuple().m_sv_error = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                         static_cast<float>(event.GetSVFitResults(allow_calc_svFit).momentum_error.M()) : def_val;
+     tuple().mt_sv = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                  static_cast<float>(event.GetSVFitResults(allow_calc_svFit).transverseMass) : def_val;
+     tuple().mt_sv_error = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                        static_cast<float>(event.GetSVFitResults(allow_calc_svFit).transverseMass_error) : def_val;
+    tuple().pt_sv = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                    static_cast<float>(event.GetHiggsTTMomentum(true,allow_calc_svFit).Pt()) : def_val;
+    tuple().pt_sv_error = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                          static_cast<float>(event.GetSVFitResults(allow_calc_svFit).momentum_error.Pt()) : def_val;
+    tuple().eta_sv = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                     static_cast<float>(event.GetHiggsTTMomentum(true,allow_calc_svFit).Eta()) : def_val;
+    tuple().eta_sv_error = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                          static_cast<float>(event.GetSVFitResults(allow_calc_svFit).momentum_error.Eta()) : def_val;
+    tuple().phi_sv = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                     static_cast<float>(event.GetHiggsTTMomentum(true,allow_calc_svFit).Phi()) : def_val;
+    tuple().phi_sv_error = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                           static_cast<float>(event.GetSVFitResults(allow_calc_svFit).momentum_error.Phi()) : def_val;
     if(event.HasBjetPair()) {
-        tuple().m_ttbb = runSVfit ? static_cast<float>(event.GetResonanceMomentum(true, false).M()) : def_val;
+        tuple().m_ttbb = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+            static_cast<float>(event.GetResonanceMomentum(true, false, allow_calc_svFit).M()) : def_val;
         if(runKinFit){
-            const auto& kinfit = event.GetKinFitResults();
+            const auto& kinfit = event.GetKinFitResults(allow_calc_svFit);
             tuple().m_ttbb_kinfit = kinfit.HasValidMass() ? static_cast<float>(kinfit.mass) : def_val;
             tuple().chi2_kinFit = kinfit.HasValidMass() ? static_cast<float>(kinfit.chi2) : def_val;
         }
@@ -72,7 +96,6 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
         tuple().m_ttbb_kinfit = def_val;
         tuple().MT2 = def_val;
     }
-
     const auto& Htt = event.GetHiggsTTMomentum(false);
     const auto& t1 = event.GetLeg(1);
     const auto& t2 = event.GetLeg(2);
@@ -93,22 +116,25 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
     tuple().phi_2 = static_cast<float>(t2.GetMomentum().phi());
     tuple().m_2 = static_cast<float>(t2.GetMomentum().M());
     tuple().iso_2 = static_cast<float>(t2.GetIsolation());
-    tuple().deepTau_vs_e_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSe));
-    tuple().deepTau_vs_mu_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSmu));
-    tuple().deepTau_vs_jet_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSjet));
-    tuple().tauId_default = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byIsolationMVArun2017v2DBoldDMwLT2017));
+    if(t2->leg_type() == LegType::tau){
+      tuple().deepTau_vs_e_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSe));
+      tuple().deepTau_vs_mu_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSmu));
+      tuple().deepTau_vs_jet_2 = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byDeepTau2017v2p1VSjet));
+      tuple().tauId_default = static_cast<float>(t2->GetRawValue(TauIdDiscriminator::byIsolationMVArun2017v2DBoldDMwLT2017));
+    }
     tuple().mt_2 = static_cast<float>(Calculate_MT(t2.GetMomentum(), event.GetMET().GetMomentum()));
     tuple().dR_l1l2 = static_cast<float>(DeltaR(t1.GetMomentum(),t2.GetMomentum()));
     tuple().abs_dphi_l1MET = static_cast<float>(std::abs(DeltaPhi(t1.GetMomentum(), event.GetMET().GetMomentum())));
-    tuple().dphi_htautauMET = runSVfit ? static_cast<float>(DeltaPhi(event.GetHiggsTTMomentum(true),
-                                                      event.GetMET().GetMomentum())) : def_val;
+    tuple().dphi_htautauMET = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                              static_cast<float>(DeltaPhi(event.GetHiggsTTMomentum(true,allow_calc_svFit), event.GetMET().GetMomentum())) : def_val;
     tuple().dR_l1l2MET = static_cast<float>(DeltaR(event.GetHiggsTTMomentum(false), event.GetMET().GetMomentum()));
-    tuple().dR_l1l2Pt_htautau = runSVfit ? static_cast<float>(DeltaR(t1.GetMomentum(), t2.GetMomentum())
-                                                   * event.GetHiggsTTMomentum(true).pt()) : def_val;
+    tuple().dR_l1l2Pt_htautau = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                                static_cast<float>(DeltaR(t1.GetMomentum(), t2.GetMomentum())
+                                * event.GetHiggsTTMomentum(true,allow_calc_svFit).pt()) : def_val;
     tuple().mass_l1l2MET = static_cast<float>((event.GetHiggsTTMomentum(false) + event.GetMET().GetMomentum()).M());
     tuple().pt_l1l2MET = static_cast<float>((event.GetHiggsTTMomentum(false) + event.GetMET().GetMomentum()).pt());
-    tuple().MT_htautau = runSVfit ? static_cast<float>(Calculate_MT(event.GetHiggsTTMomentum(true),
-                                                         event.GetMET().GetMomentum())) : def_val;
+    tuple().MT_htautau = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                         static_cast<float>(Calculate_MT(event.GetHiggsTTMomentum(true,allow_calc_svFit),event.GetMET().GetMomentum())) : def_val;
     tuple().npv = event->npv;
     tuple().MET = static_cast<float>(event.GetMET().GetMomentum().Pt());
     tuple().phiMET = static_cast<float>(event.GetMET().GetMomentum().Phi());
@@ -121,25 +147,31 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
     tuple().HT_otherjets = event->ht_other_jets;
     tuple().HT_otherjets_gen = static_cast<float>(event.GetHT(false,true));
     tuple().HT_total_gen = static_cast<float>(event.GetHT(true,true));
+    tuple().n_jets = event.EventInfo::SelectJets(20,5,false,false,JetOrdering::DeepCSV,
+                                                     event.EventInfo::GetSelectedBjetIndicesSet()).size();
+    tuple().n_jets_pu = event.EventInfo::SelectJets(20,5,true,false,JetOrdering::DeepCSV,
+                                                        event.EventInfo::GetSelectedBjetIndicesSet()).size();
+    tuple().n_jets_eta24_eta5 = event.EventInfo::SelectJets(20,5,false,false,JetOrdering::DeepCSV,
+                                                                event.EventInfo::GetSelectedBjetIndicesSet(),2.4).size();
+    tuple().n_jets_eta24_eta5_pu = event.EventInfo::SelectJets(20,5,true,false,JetOrdering::DeepCSV,
+                                                                   event.EventInfo::GetSelectedBjetIndicesSet(),2.4).size();
+    tuple().n_jets_eta24 = event.EventInfo::SelectJets(20,2.4,false,false,JetOrdering::DeepCSV,
+                                                           event.EventInfo::GetSelectedBjetIndicesSet()).size();
+    tuple().n_jets_eta24_pu = event.EventInfo::SelectJets(20,2.4,true,false,JetOrdering::DeepCSV,
+                                                              event.EventInfo::GetSelectedBjetIndicesSet()).size();
 
-    tuple().n_jets = event.EventInfoBase::SelectJets(20,5,false,false,JetOrdering::DeepCSV,event.EventInfoBase::GetSelectedBjetIndicesSet()).size();
-    tuple().n_jets_pu = event.EventInfoBase::SelectJets(20,5,true,false,JetOrdering::DeepCSV,event.EventInfoBase::GetSelectedBjetIndicesSet()).size();
-    tuple().n_jets_eta24_eta5 = event.EventInfoBase::SelectJets(20,5,false,false,JetOrdering::DeepCSV,event.EventInfoBase::GetSelectedBjetIndicesSet(),2.4).size();
-    tuple().n_jets_eta24_eta5_pu = event.EventInfoBase::SelectJets(20,5,true,false,JetOrdering::DeepCSV,event.EventInfoBase::GetSelectedBjetIndicesSet(),2.4 ).size();
-    tuple().n_jets_eta24 = event.EventInfoBase::SelectJets(20,2.4,false,false,JetOrdering::DeepCSV ,event.EventInfoBase::GetSelectedBjetIndicesSet()).size();
-    tuple().n_jets_eta24_pu = event.EventInfoBase::SelectJets(20,2.4,true,false,JetOrdering::DeepCSV ,event.EventInfoBase::GetSelectedBjetIndicesSet()).size();
-
-    if(event.HasVBFjetPair()){
-        tuple().pt_VBF_1 = static_cast<float>(event.GetVBFJet(1).GetMomentum().Pt());
-        tuple().eta_VBF_1 = static_cast<float>(event.GetVBFJet(1).GetMomentum().Eta());
-        tuple().phi_VBF_1 = static_cast<float>(event.GetVBFJet(1).GetMomentum().Phi());
-        tuple().m_VBF_1 = static_cast<float>(event.GetVBFJet(1).GetMomentum().M());
-        tuple().pt_VBF_2 = static_cast<float>(event.GetVBFJet(2).GetMomentum().Pt());
-        tuple().eta_VBF_2 = static_cast<float>(event.GetVBFJet(2).GetMomentum().Eta());
-        tuple().phi_VBF_2 = static_cast<float>(event.GetVBFJet(2).GetMomentum().Phi());
-        tuple().m_VBF_2 = static_cast<float>(event.GetVBFJet(2).GetMomentum().M());
-    }
-
+    tuple().pt_VBF_1 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(1).GetMomentum().Pt()) : def_val;
+    tuple().eta_VBF_1 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(1).GetMomentum().Eta()) : def_val;
+    tuple().phi_VBF_1 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(1).GetMomentum().Phi()) : def_val;
+    tuple().m_VBF_1 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(1).GetMomentum().M()) : def_val;
+    tuple().deep_flavour_VBF_1 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(1)->deepFlavour())
+                                                       : def_val;
+    tuple().pt_VBF_2 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(2).GetMomentum().Pt()) : def_val;
+    tuple().eta_VBF_2 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(2).GetMomentum().Eta()) : def_val;
+    tuple().phi_VBF_2 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(2).GetMomentum().Phi()) : def_val;
+    tuple().m_VBF_2 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(2).GetMomentum().M()) : def_val;
+    tuple().deep_flavour_VBF_2 = event.HasVBFjetPair() ? static_cast<float>(event.GetVBFJet(2)->deepFlavour())
+                                                       : def_val;
 
     tuple().n_selected_gen_jets =  event->genJets_p4.size();
     int n_bflavour=0;
@@ -170,20 +202,25 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
         tuple().m_b1 = static_cast<float>(b1.GetMomentum().M());
         tuple().csv_b1 = b1->csv();
         tuple().deepcsv_b1 = b1->deepcsv();
+        tuple().deep_flavour_b1 = b1->deepFlavour();
         tuple().pt_b2 = static_cast<float>(b2.GetMomentum().Pt());
         tuple().eta_b2 = static_cast<float>(b2.GetMomentum().Eta());
         tuple().phi_b2 = static_cast<float>(b2.GetMomentum().Phi());
         tuple().m_b2 = static_cast<float>(b2.GetMomentum().M());
         tuple().csv_b2 = b2->csv();
         tuple().deepcsv_b2 = b2->deepcsv();
-        tuple().dphi_hbbhtautau = runSVfit ? static_cast<float>(DeltaPhi(Hbb.GetMomentum(), event.GetHiggsTTMomentum(true))) : def_val;
-        tuple().deta_hbbhtautau = runSVfit ? static_cast<float>((Hbb.GetMomentum()-event.GetHiggsTTMomentum(true)).Eta()) : def_val;
+        tuple().deep_flavour_b2 = b2->deepFlavour();
+        tuple().dphi_hbbhtautau = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                                  static_cast<float>(DeltaPhi(Hbb.GetMomentum(),
+                                                    event.GetHiggsTTMomentum(true,allow_calc_svFit))) : def_val;
+        tuple().deta_hbbhtautau = runSVfit && event.GetSVFitResults(allow_calc_svFit).has_valid_momentum ?
+                                  static_cast<float>((Hbb.GetMomentum() -
+                                  event.GetHiggsTTMomentum(true,allow_calc_svFit)).Eta()) : def_val;
         tuple().costheta_METhbb = static_cast<float>(four_bodies::Calculate_cosTheta_2bodies(
                                                          event.GetMET().GetMomentum(), Hbb.GetMomentum()));
         tuple().dR_b1b2 = static_cast<float>(DeltaR(b1.GetMomentum(), b2.GetMomentum()));
         tuple().dR_b1b2_boosted = static_cast<float>(four_bodies::Calculate_dR_boosted(
                                                          b1.GetMomentum(), b2.GetMomentum(), Hbb.GetMomentum()));
-
         tuple().mass_top1 = static_cast<float>(four_bodies::Calculate_topPairMasses(
                                                    t1.GetMomentum(), t2.GetMomentum(), b1.GetMomentum(),
                                                    b2.GetMomentum(), event.GetMET().GetMomentum()).first);
@@ -191,6 +228,9 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
                                                    t1.GetMomentum(), t2.GetMomentum(), b1.GetMomentum(),
                                                    b2.GetMomentum(), event.GetMET().GetMomentum()).second);
         tuple().HT_total = static_cast<float>(b1.GetMomentum().pt() + b2.GetMomentum().Pt() + event->ht_other_jets);
+        tuple().dR_lj = static_cast<float>(four_bodies::Calculate_min_dR_lj(t1.GetMomentum(), t2.GetMomentum(),
+                                           b1.GetMomentum(), b2.GetMomentum()));
+
     } else {
         tuple().m_bb = def_val;
         tuple().pt_H_bb = def_val;
@@ -207,8 +247,8 @@ void AnaTupleWriter::AddEvent(EventInfoBase& event, const AnaTupleWriter::DataId
         tuple().dR_b1b2_boosted = def_val;
         tuple().mass_top1 = def_val;
         tuple().mass_top2 = def_val;
+        tuple().dR_lj = def_val;
     }
-
     tuple.Fill();
 }
 
@@ -216,7 +256,7 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
     file(root_ext::OpenRootFile(file_name))
 {
     static const NameSet essential_branches = { "dataIds", "all_weights", "has_2jets" };
-    static const NameSet other_branches = { "all_mva_scores", "weight" };
+    static const NameSet other_branches = { "all_mva_scores", "weight", "evt", "run", "lumi" };
     NameSet enabled_branches;
     if(active_var_names.size()) {
         enabled_branches.insert(essential_branches.begin(), essential_branches.end());

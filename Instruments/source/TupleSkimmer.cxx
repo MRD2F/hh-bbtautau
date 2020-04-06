@@ -7,6 +7,7 @@ This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 
 #include "AnalysisTools/Core/include/RootExt.h"
 #include "AnalysisTools/Run/include/program_main.h"
+#include "AnalysisTools/Core/include/Tools.h"
 #include "h-tautau/Analysis/include/EventInfo.h"
 #include "AnalysisTools/Run/include/EntryQueue.h"
 #include "AnalysisTools/Core/include/ProgressReporter.h"
@@ -14,7 +15,7 @@ This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 #include "hh-bbtautau/McCorrections/include/EventWeights_HH.h"
 #include "hh-bbtautau/Instruments/include/SkimmerConfigEntryReader.h"
 #include "AnalysisTools/Core/include/ConfigReader.h"
-#include "h-tautau/Cuts/include/hh_bbtautau_2016.h"
+#include "h-tautau/Cuts/include/hh_bbtautau_Run2.h"
 #include "hh-bbtautau/Analysis/include/AnalysisCategories.h"
 #include "h-tautau/Analysis/include/MetFilters.h"
 
@@ -22,7 +23,6 @@ This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 #include "h-tautau/McCorrections/include/LeptonWeights.h"
 #include "h-tautau/McCorrections/include/BTagWeight.h"
 #include "h-tautau/McCorrections/include/TopPtWeight.h"
-#include "h-tautau/McCorrections/include/TauIdWeight.h"
 #include "h-tautau/McCorrections/include/GenEventWeight.h"
 #include "hh-bbtautau/McCorrections/include/HH_nonResonant_weight.h"
 #include "h-tautau/Analysis/include/SignalObjectSelector.h"
@@ -81,9 +81,12 @@ public:
 
         signalObjectSelector = std::make_shared<SignalObjectSelector>(setup.mode);
 
+        EventCandidate::InitializeUncertainties(setup.period, false, ".",
+                                                signalObjectSelector->GetTauVSjetDiscriminator().first);
+
         std::cout << "done.\nLoading weights... " << std::flush;
-        eventWeights_HH = std::make_shared<mc_corrections::EventWeights_HH>(setup.period, setup.jet_ordering, setup.btag_wp,
-                                                                            args.use_LLR_weights(),setup.applyTauId);
+        eventWeights_HH = std::make_shared<mc_corrections::EventWeights_HH>(setup.period, setup.jet_ordering,
+                                                                            setup.btag_wp, args.use_LLR_weights());
         std::cout << "done." << std::endl;
 
         if(args.jobs() == "all") {
@@ -146,6 +149,9 @@ private:
 
         try {
             weighting_mode = job.apply_common_weights ? job.weights | setup.common_weights : job.weights;
+            unc_sources = { UncertaintySource::None };
+            if(!job.isData)
+                unc_sources = setup.unc_sources;
             for(auto desc_iter = job.files.begin(); desc_iter != job.files.end(); ++desc_iter, ++desc_id) {
                 if(desc_iter == job.files.begin() || !job.ProduceMergedOutput()) {
                     for (Channel channel : setup.channels){
@@ -194,13 +200,29 @@ private:
                 }
                 std::cout << "\tProcessing";
                 std::vector<std::shared_ptr<TFile>> inputFiles;
-                std::vector<std::vector<std::shared_ptr<TFile>>> inputCacheFiles;
+                std::vector<std::map<Channel, std::vector<std::shared_ptr<TFile>>>> inputCacheFiles;
                 for(const auto& input : desc_iter->inputs) {
-                    std::cout << " " << input << std::endl;
+                    std::cout << " " << input;
                     inputFiles.push_back(root_ext::OpenRootFile(args.inputPath() + "/" + input));
-                    std::vector<std::shared_ptr<TFile>> cacheFiles;
-                    for(unsigned c = 0; c < setup.cachePaths.size(); ++c){
-                        cacheFiles.push_back(root_ext::OpenRootFile(args.cachePathBase() +setup.cachePaths.at(c) + "/" + input));
+                    std::map<Channel, std::vector<std::shared_ptr<TFile>>> cacheFiles;
+
+                    if(setup.use_cache){
+                        for(UncertaintySource unc_source : unc_sources) {
+                            for (Channel channel : setup.channels){
+                                auto full_path =  tools::FullPath({args.cachePathBase(), ToString(unc_source),
+                                                                   ToString(channel)});
+
+                                std::vector<std::string> cache_files = tools::FindFiles(full_path,
+                                                                                        "^" + RemoveFileExtension(input) +
+                                                                                        "(_cache[0-9]+|)\\.root$");
+                                if(cache_files.size() == 0)
+                                std::cerr << "  Cache files are not used, no matched found for sample: " << input << "'."
+                                          << std::endl;
+                                for (size_t i = 0; i < cache_files.size(); ++i)
+                                    cacheFiles[channel].push_back(root_ext::OpenRootFile(tools::FullPath({full_path,
+                                                                                                 cache_files.at(i)})));
+                            }
+                        }
                     }
                     inputCacheFiles.push_back(cacheFiles);
                 }
@@ -250,14 +272,14 @@ private:
                         }
                         if(!tuple) continue;
                         std::vector<std::shared_ptr<cache_tuple::CacheTuple>> cacheTuples;
-                        for(unsigned h = 0; h < inputCacheFiles.at(n).size(); ++h){
-                            auto cacheFile = inputCacheFiles.at(n).at(h);
+                        for(unsigned h = 0; h < inputCacheFiles.at(n)[channel].size(); ++h){
+                            auto cacheFile = inputCacheFiles.at(n)[channel].at(h);
                             try {
                                 auto cacheTuple = std::make_shared<cache_tuple::CacheTuple>(treeName,cacheFile.get(),true);
                                 cacheTuples.push_back(cacheTuple);
                             } catch(std::exception&) {
-                                std::cerr << "WARNING: tree " << treeName << " not found in file '"
-                                          << cacheFile << "'." << std::endl;
+                                std::cerr << "WARNING: tree " << treeName << " not found in cache file '"
+                                          << cacheFile->GetName() << "'." << std::endl;
                                 cacheTuples.push_back(nullptr);
                             }
                         }
@@ -273,6 +295,11 @@ private:
                             processed_events.insert(fullId);
 
                             auto event_ptr = std::make_shared<Event>(event);
+                //temporary fix due tue a bug in mumu channel in production
+			    if(static_cast<Channel>(event_ptr->channelId) == Channel::MuMu){
+			       event_ptr->first_daughter_indexes = {0};
+			       event_ptr->second_daughter_indexes = {1};
+			    }
                             event_ptr->weight_xs = weight_xs;
                             event_ptr->weight_xs_withTopPt = weight_xs_withTopPt;
                             event_ptr->file_desc_id = desc_id;
@@ -400,82 +427,73 @@ private:
         return summary;
     }
 
-    // bool ApplyTauIdCut(TauIdResults::BitsContainer id_bits) const
-    // {
-    //     const TauIdResults id_results(id_bits);
-    //     for(size_t index : setup.tau_id_cut_indices) {
-    //         if(!id_results.Result(index))
-    //             return false;
-    //     }
-    //     return true;
-    // }
-
-    bool ProcessEvent(Event& event)
+    bool EventPassSelection(boost::optional<EventInfo>& eventInfo) const
     {
-        // using EventPart = ntuple::StorageMode::EventPart;
-        using WeightType = mc_corrections::WeightType;
-        using WeightingMode = mc_corrections::WeightingMode;
-        boost::optional<EventInfoBase> eventInfo = CreateEventInfo(event,*signalObjectSelector,nullptr,setup.period,setup.jet_ordering);
         if(!eventInfo.is_initialized()) return false;
-
+        if(!signalObjectSelector->PassLeptonVetoSelection(eventInfo->GetEventCandidate().GetEvent())) return false;
+        if(!signalObjectSelector->PassMETfilters(eventInfo->GetEventCandidate().GetEvent(), setup.period,
+                                                 eventInfo->GetEventCandidate().GetEvent().isData)) return false;
         if(setup.apply_bb_cut && !eventInfo->HasBjetPair()) return false;
+
+        if (setup.apply_charge_cut && (eventInfo->GetLeg(1)->charge() + eventInfo->GetLeg(2)->charge()) != 0)
+            return false;
+        if(setup.apply_tau_iso){
+            if(eventInfo->GetLeg(2)->leg_type() == analysis::LegType::tau){
+                const LepCandidate& tau = eventInfo->GetLeg(2);
+                if(!tau->Passed(signalObjectSelector->GetTauVSjetDiscriminator().first,
+                                signalObjectSelector->GetTauVSjetDiscriminator().second)) return false;
+            }
+        }
 
         if(setup.apply_mass_cut) {
             bool pass_mass_cut = false;
             if (!eventInfo->HasBjetPair()) return false;
             const double mbb = eventInfo->GetHiggsBB().GetMomentum().mass();
             const double mtautau = (eventInfo->GetLeg(1).GetMomentum() + eventInfo->GetLeg(2).GetMomentum()).mass();
-            pass_mass_cut = pass_mass_cut
-                    || cuts::hh_bbtautau_2016::hh_tag::IsInsideBoostedMassWindow(eventInfo->GetSVFitResults().momentum.mass(),mbb);
+            pass_mass_cut = pass_mass_cut || (eventInfo->GetSVFitResults().has_valid_momentum &&
+                        cuts::hh_bbtautau_Run2::hh_tag::IsInsideBoostedMassWindow(
+                            eventInfo->GetSVFitResults().momentum.mass(), mbb));
 
             if(setup.massWindowParams.count(SelectionCut::mh))
-                pass_mass_cut = pass_mass_cut || setup.massWindowParams.at(SelectionCut::mh)
-                        .IsInside(eventInfo->GetSVFitResults().momentum.mass(),mbb);
+                pass_mass_cut = pass_mass_cut || (eventInfo->GetSVFitResults().has_valid_momentum &&
+                                setup.massWindowParams.at(SelectionCut::mh).IsInside(eventInfo->GetSVFitResults().momentum.mass(),mbb));
 
             if(setup.massWindowParams.count(SelectionCut::mhVis))
-                pass_mass_cut = pass_mass_cut || setup.massWindowParams.at(SelectionCut::mhVis)
-                        .IsInside(mtautau,mbb);
+                pass_mass_cut = pass_mass_cut || setup.massWindowParams.at(SelectionCut::mhVis).IsInside(mtautau, mbb);
 
             if(setup.massWindowParams.count(SelectionCut::mhMET))
                 pass_mass_cut = pass_mass_cut || setup.massWindowParams.at(SelectionCut::mhMET)
-                        .IsInside((eventInfo->GetLeg(1).GetMomentum() + eventInfo->GetLeg(2).GetMomentum() + event.pfMET_p4).mass(),mbb);
+                        .IsInside((eventInfo->GetLeg(1).GetMomentum() + eventInfo->GetLeg(2).GetMomentum()
+                                   + eventInfo->GetMET().GetMomentum()).mass(), mbb);
 
             if(!pass_mass_cut) return false;
         }
+        return true;
+    }
 
-        if (setup.apply_charge_cut && (eventInfo->GetLeg(1)->charge() + eventInfo->GetLeg(2)->charge()) != 0) return false;
+    boost::optional<EventInfo> CreateAnyEventInfo(const Event& event) const
+    {
+        for(UncertaintySource unc_source : unc_sources) {
+            for(UncertaintyScale unc_scale : GetActiveUncertaintyScales(unc_source)) {
+                auto eventInfo = CreateEventInfo(event, *signalObjectSelector, nullptr, setup.period,
+                                                 setup.jet_ordering, false, unc_source, unc_scale);
+                if(EventPassSelection(eventInfo))
+                    return eventInfo;
+            }
+        }
+        return boost::optional<EventInfo>();
+    }
 
-        // if(setup.ApplyTauIdCuts()) {
-        //     const Channel channel = static_cast<Channel>(event.channelId);
-        //     const auto leg_types = GetChannelLegTypes(channel);
-        //     if(leg_types.first == LegType::tau && !ApplyTauIdCut(event.tauId_flags_1)) return false;
-        //     if(leg_types.second == LegType::tau && !ApplyTauIdCut(event.tauId_flags_2)) return false;
-        // }
-
-        event.ht_other_jets = (eventInfo->HasBjetPair()) ? static_cast<Float_t>(eventInfo->GetHT(false,true)) : 0;
+    bool ProcessEvent(Event& event)
+    {
+        // using EventPart = ntuple::StorageMode::EventPart;
+        using WeightType = mc_corrections::WeightType;
+        using WeightingMode = mc_corrections::WeightingMode;
+        boost::optional<EventInfo> eventInfo = CreateAnyEventInfo(event);
+        if(!eventInfo.is_initialized()) return false;
 
         event.weight_pu = weighting_mode.count(WeightType::PileUp)
                         ? eventWeights_HH->GetWeight(*eventInfo, WeightType::PileUp) : 1;
-        // if(weighting_mode.count(WeightType::LeptonTrigIdIso)) {
-        //     auto lepton_wp = eventWeights_HH->GetProviderT<mc_corrections::LeptonWeights>(WeightType::LeptonTrigIdIso);
-        //     event.weight_lepton_trig = lepton_wp->GetTriggerWeight(*eventInfo);
-        //     event.weight_lepton_id_iso = lepton_wp->GetIdIsoWeight(*eventInfo);
-        // } else {
-            event.weight_lepton_trig = 1;
-            event.weight_lepton_id_iso = 1;
-        // }
-        event.weight_tau_id = weighting_mode.count(WeightType::TauId)
-                ? eventWeights_HH->GetWeight(*eventInfo, WeightType::TauId) : 1;
-        if(weighting_mode.count(WeightType::BTag)) {
-            auto btag_wp = eventWeights_HH->GetProviderT<mc_corrections::BTagWeight>(WeightType::BTag);
-            event.weight_btag = btag_wp->Get(*eventInfo);
-            event.weight_btag_up = btag_wp->GetEx(*eventInfo, UncertaintyScale::Up);
-            event.weight_btag_down = btag_wp->GetEx(*eventInfo, UncertaintyScale::Down);
-        } else {
-            event.weight_btag = 1;
-            event.weight_btag_up = 1;
-            event.weight_btag_down = 1;
-        }
         event.weight_dy = weighting_mode.count(WeightType::DY)
                 ? eventWeights_HH->GetWeight(*eventInfo, WeightType::DY) : 1;
         event.weight_ttbar = weighting_mode.count(WeightType::TTbar)
@@ -496,14 +514,6 @@ private:
             event.weight_total = eventWeights_HH->GetTotalWeight(*eventInfo, weighting_mode) * event.weight_xs;
             event.weight_total_withTopPt = 0;
         }
-
-//        if(setup.apply_bb_cut && storage_mode.IsPresent(EventPart::Jets)) {
-//            event.jets_csv.resize(2);
-//            event.jets_rawf.resize(2);
-//            event.jets_pu_id.resize(2);
-//            event.jets_p4.resize(2);
-//            event.jets_hadronFlavour.resize(2);
-//        }
 
         if(!setup.keep_genJets) {
             event.genJets_p4.clear();
@@ -535,6 +545,7 @@ private:
 	std::shared_ptr<TFile> outputFile;
     mc_corrections::WeightingMode weighting_mode;
     std::shared_ptr<SignalObjectSelector> signalObjectSelector;
+    std::set<UncertaintySource> unc_sources;
 };
 
 } // namespace tuple_skimmer

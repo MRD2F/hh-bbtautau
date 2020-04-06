@@ -18,10 +18,12 @@ SyncDescriptor::SyncDescriptor(const std::string& desc_str, std::shared_ptr<TFil
 }
 
 BaseEventAnalyzer::BaseEventAnalyzer(const AnalyzerArguments& _args, Channel channel) :
-    EventAnalyzerCore(_args, channel), args(_args), anaTupleWriter(args.output(), channel, ana_setup.use_kinFit, ana_setup.use_svFit),
-    trigger_patterns(ana_setup.trigger.at(channel)),signalObjectSelector(ana_setup.mode)
+    EventAnalyzerCore(_args, channel), args(_args), anaTupleWriter(args.output(), channel, ana_setup.use_kinFit,
+                      ana_setup.use_svFit,ana_setup.allow_calc_svFit),
+    trigger_patterns(ana_setup.trigger.at(channel))
 {
-    EventCandidate::InitializeJecUncertainties(ana_setup.period, args.working_path());
+    EventCandidate::InitializeUncertainties(ana_setup.period, false, args.working_path(),
+                                            signalObjectSelector.GetTauVSjetDiscriminator().first);
     InitializeMvaReader();
     if(ana_setup.syncDataIds.size()){
         outputFile_sync = root_ext::CreateRootFile(args.output_sync());
@@ -40,8 +42,7 @@ BaseEventAnalyzer::BaseEventAnalyzer(const AnalyzerArguments& _args, Channel cha
         }
     }
     eventWeights_HH = std::make_shared<mc_corrections::EventWeights_HH>(ana_setup.period, ana_setup.jet_ordering,
-                                                                        DiscriminatorWP::Medium, false,
-                                                                        ana_setup.applyTauID);
+                                                                        DiscriminatorWP::Medium, false);
 }
 
 void BaseEventAnalyzer::Run()
@@ -57,26 +58,25 @@ void BaseEventAnalyzer::Run()
     }
 }
 
-EventCategorySet BaseEventAnalyzer::DetermineEventCategories(EventInfoBase& event)
+EventCategorySet BaseEventAnalyzer::DetermineEventCategories(EventInfo& event)
 {
     static const std::map<DiscriminatorWP, size_t> btag_working_points = {{DiscriminatorWP::Loose, 0},
                                                                           {DiscriminatorWP::Medium, 0},
                                                                           {DiscriminatorWP::Tight, 0}};
     EventCategorySet categories;
     // const bool is_boosted =  false;
-    const bool is_boosted = event.SelectFatJet(cuts::hh_bbtautau_2016::fatJetID::mass,
-                                               cuts::hh_bbtautau_2016::fatJetID::deltaR_subjet) != nullptr;
+    const bool is_boosted = event.SelectFatJet(cuts::hh_bbtautau_Run2::fatJetID::mass,
+                                               cuts::hh_bbtautau_Run2::fatJetID::deltaR_subjet) != nullptr;
     bool is_VBF = false;
     std::set<size_t> jets_to_exclude;
     if(event.HasVBFjetPair()){
         const auto vbf_jet_1 = event.GetVBFJet(1).GetMomentum();
         const auto vbf_jet_2 = event.GetVBFJet(2).GetMomentum();
-
         const auto deta_jj =  std::abs(vbf_jet_1.Eta() - vbf_jet_2.Eta());
         const auto m_jj = (vbf_jet_1 + vbf_jet_2).M();
 
-        is_VBF = (m_jj > cuts::hh_bbtautau_2017::VBF::mass_jj
-                    && deta_jj > cuts::hh_bbtautau_2017::VBF::deltaeta_jj);
+        is_VBF = (m_jj > cuts::hh_bbtautau_Run2::VBF::mass_jj
+                    && deta_jj > cuts::hh_bbtautau_Run2::VBF::deltaeta_jj);
         jets_to_exclude.insert(event.GetVBFJet(1)->jet_index());
         jets_to_exclude.insert(event.GetVBFJet(2)->jet_index());
     }
@@ -87,7 +87,8 @@ EventCategorySet BaseEventAnalyzer::DetermineEventCategories(EventInfoBase& even
     for(const auto& jet : jets) {
         ++n;
         for(const auto& btag_wp : btag_working_points){
-            if(bTagger->Pass(*jet, analysis::UncertaintySource::None, analysis::UncertaintyScale::Central, btag_wp.first)) ++bjet_counts[btag_wp.first];
+            if(bTagger->Pass(*jet, analysis::UncertaintySource::None, analysis::UncertaintyScale::Central,
+                             btag_wp.first)) ++bjet_counts[btag_wp.first];
         }
     }
 
@@ -119,10 +120,10 @@ void BaseEventAnalyzer::InitializeMvaReader()
     }
 }
 
-EventSubCategory BaseEventAnalyzer::DetermineEventSubCategory(EventInfoBase& event, const EventCategory& category,
+EventSubCategory BaseEventAnalyzer::DetermineEventSubCategory(EventInfo& event, const EventCategory& category,
                                                               std::map<SelectionCut, double>& mva_scores)
 {
-    using namespace cuts::hh_bbtautau_2016::hh_tag;
+    using namespace cuts::hh_bbtautau_Run2::hh_tag;
     using MvaKey = mva_study::MvaReader::MvaKey;
 
     EventSubCategory sub_category;
@@ -131,17 +132,22 @@ EventSubCategory BaseEventAnalyzer::DetermineEventSubCategory(EventInfoBase& eve
         mbb = event.GetHiggsBB().GetMomentum().mass();
         if(category.HasBoostConstraint() && category.IsBoosted()){
             if(ana_setup.use_svFit){
-                bool isInsideBoostedCut = IsInsideBoostedMassWindow(event.GetHiggsTTMomentum(true).mass(),mbb);
+                bool isInsideBoostedCut = event.GetSVFitResults(ana_setup.allow_calc_svFit).has_valid_momentum
+                                          && IsInsideBoostedMassWindow(event.GetHiggsTTMomentum(true,
+                                                                       ana_setup.allow_calc_svFit).mass(),mbb);
                 sub_category.SetCutResult(SelectionCut::mh,isInsideBoostedCut);
             }
         }
         else{
             if(!ana_setup.use_svFit && ana_setup.massWindowParams.count(SelectionCut::mh))
                 throw exception("Category mh inconsistent with the false requirement of SVfit.");
-            if(ana_setup.massWindowParams.count(SelectionCut::mh))
-                sub_category.SetCutResult(SelectionCut::mh,ana_setup.massWindowParams.at(SelectionCut::mh)
-                        .IsInside(event.GetHiggsTTMomentum(true).mass(),mbb));
-
+            if(ana_setup.massWindowParams.count(SelectionCut::mh)){
+                const bool cut_result = ana_setup.use_svFit && event.GetSVFitResults(ana_setup.allow_calc_svFit).has_valid_momentum
+                    && ana_setup.massWindowParams.at(SelectionCut::mh).IsInside(event.GetHiggsTTMomentum(true,
+                                                                                      ana_setup.allow_calc_svFit).mass(),
+                                                                                      mbb);
+                sub_category.SetCutResult(SelectionCut::mh, cut_result);
+            }
             if(ana_setup.massWindowParams.count(SelectionCut::mhVis))
                 sub_category.SetCutResult(SelectionCut::mhVis,ana_setup.massWindowParams.at(SelectionCut::mhVis)
                         .IsInside(event.GetHiggsTTMomentum(false).mass(),mbb));
@@ -152,7 +158,8 @@ EventSubCategory BaseEventAnalyzer::DetermineEventSubCategory(EventInfoBase& eve
 
         }
         if(ana_setup.use_kinFit)
-            sub_category.SetCutResult(SelectionCut::KinematicFitConverged, event.GetKinFitResults().HasValidMass());
+            sub_category.SetCutResult(SelectionCut::KinematicFitConverged,
+                                      event.GetKinFitResults(ana_setup.allow_calc_svFit).HasValidMass());
     }
     if(mva_setup.is_initialized()) {
 
@@ -231,6 +238,11 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
                 const auto eventCategories = DetermineEventCategories(*event);
                 for(auto eventCategory : eventCategories) {
                     //if (!ana_setup.categories.count(eventCategory)) continue;
+
+                    //temporay fix for muMu
+                    bool is_data = (sample.sampleType == SampleType::Data);
+                    if(!signalObjectSelector.PassMETfilters(tupleEvent,ana_setup.period,is_data)) continue;
+                    if(!signalObjectSelector.PassLeptonVetoSelection(tupleEvent)) continue;
                     const EventRegion eventRegion = DetermineEventRegion(*event, eventCategory);
                     for(const auto& region : ana_setup.regions){
                         if(!eventRegion.Implies(region)) continue;
@@ -264,7 +276,6 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
                                         mc_corrections::WeightType::BTag);
                                 double total_btag_weight = btag_weight->Get(*event);
 
-
                                 const double weight = (*event)->weight_total * sample.cross_section
                                     * ana_setup.int_lumi * total_lepton_weight * total_btag_weight
                                     / summary->totalShapeWeight * mva_weight_scale;
@@ -283,7 +294,8 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
                     const auto& regex_pattern = sync_descriptors.at(n).regex_pattern;
                     for(auto& dataId : dataIds){
                         if(boost::regex_match(dataId.first.GetName(), *regex_pattern)){
-                            htt_sync::FillSyncTuple(*event, *sync_descriptors.at(n).sync_tree, ana_setup.period,ana_setup.use_svFit,std::get<0>(dataId.second));
+                            htt_sync::FillSyncTuple(*event, *sync_descriptors.at(n).sync_tree, ana_setup.period,
+                                                    ana_setup.use_svFit,std::get<0>(dataId.second));
                             break;
                         }
                     }
@@ -295,7 +307,7 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
 
 void BaseEventAnalyzer::ProcessSpecialEvent(const SampleDescriptor& sample,
                                             const SampleDescriptor::Point& /*sample_wp*/,
-                                            const EventAnalyzerDataId& anaDataId, EventInfoBase& event, double weight,
+                                            const EventAnalyzerDataId& anaDataId, EventInfo& event, double weight,
                                             double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds)
 {
     if(sample.sampleType == SampleType::DY){
@@ -316,6 +328,58 @@ void BaseEventAnalyzer::ProcessSpecialEvent(const SampleDescriptor& sample,
         nonResModel->ProcessEvent(anaDataId, event, weight, shape_weight, dataIds);
     } else
         throw exception("Unsupported special event type '%1%'.") % sample.sampleType;
+}
+
+bool BaseEventAnalyzer::SetRegionIsoRange(const LepCandidate& cand, EventRegion& region) const
+{
+    if(cand->leg_type() == LegType::tau) {
+        const auto& [tau_discr, wp_max] = signalObjectSelector.GetTauVSjetDiscriminator();
+        const auto wp_min = signalObjectSelector.GetTauVSjetSidebandWPRange().first;
+        for(int wp_index = static_cast<int>(wp_max); wp_index >= static_cast<int>(wp_min); --wp_index) {
+            const DiscriminatorWP wp = static_cast<DiscriminatorWP>(wp_index);
+            if(cand->Passed(tau_discr, wp)) {
+                region.SetLowerIso(wp);
+                if(wp != wp_max)
+                    region.SetUpperIso(static_cast<DiscriminatorWP>(wp_index - 1));
+                break;
+            }
+        }
+    } else if(cand->leg_type() == LegType::mu) {
+        static const std::map<DiscriminatorWP, double> working_points = {
+            { DiscriminatorWP::VVLoose, 2.0 },
+            { DiscriminatorWP::Loose, 0.3 },
+            { DiscriminatorWP::Medium, ::cuts::hh_bbtautau_Run2::MuTau::muonID::pfRelIso04 }
+        };
+        if(cand.GetIsolation() > working_points.at(DiscriminatorWP::Medium)
+                && cand.GetIsolation() < working_points.at(DiscriminatorWP::Loose)) return false;
+        for(auto wp = working_points.rbegin(); wp != working_points.rend(); ++wp) {
+            if(cand.GetIsolation() < wp->second) {
+                region.SetLowerIso(wp->first);
+                if(wp != working_points.rbegin())
+                    region.SetUpperIso((--wp)->first);
+                break;
+            }
+        }
+    } else if(cand->leg_type() == LegType::e) {
+        static const std::map<DiscriminatorWP, double> working_points = {
+            { DiscriminatorWP::VVLoose, 2.0 },
+            { DiscriminatorWP::Loose, 0.3 },
+            { DiscriminatorWP::Medium, ::cuts::H_tautau_Run2::ETau::electronID::pfRelIso04 }
+        };
+        if(cand.GetIsolation() > working_points.at(DiscriminatorWP::Medium)
+                && cand.GetIsolation() < working_points.at(DiscriminatorWP::Loose)) return false;
+        for(auto wp = working_points.rbegin(); wp != working_points.rend(); ++wp) {
+            if(cand.GetIsolation() < wp->second) {
+                region.SetLowerIso(wp->first);
+                if(wp != working_points.rbegin())
+                    region.SetUpperIso((--wp)->first);
+                break;
+            }
+        }
+    } else {
+        throw exception("BaseEventAnalyzer::SetRegionIsoRange: leg type not supported.");
+    }
+    return region.HasLowerIso();
 }
 
 } // namespace analysis
