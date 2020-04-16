@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 import json
 import ROOT
-import keras
+# import keras
 
 from keras.layers import Input, Layer, Lambda, Dense, Dropout, LSTM, GRU, SimpleRNN, TimeDistributed, Concatenate, BatchNormalization, Embedding
 from keras import Model
@@ -30,8 +30,9 @@ class StdLayer(Layer):
         super(StdLayer, self).__init__(**kwargs)
 
     def call(self, X):
-        Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
-        X_shape = tf.shape(X)
+        Y = np.clip(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
+        # Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
+        # X_shape = tf.shape(X)
         vars_apply = tf.logical_and(tf.ones_like(X, dtype=tf.bool), self.vars_apply)
         return tf.where(vars_apply, Y, X)
 
@@ -80,7 +81,8 @@ class NormToTwo(Layer):
         x = tf.reshape(x, shape=(input_shape[0], input_shape[1]))
         x = x * tf.cast(mask, dtype=tf.float32)
         s = tf.reshape(tf.reduce_sum(x, axis = 1), shape=(input_shape[0], 1))
-        x = (2 * x ) / s
+        # x = (2 * x ) / s
+        x = tf.clip_by_value((2.01 * x ) / (s + 0.01), 0, 1)
         return x
 
 class Slice(Layer):
@@ -121,13 +123,13 @@ class Masking(Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
-def CreateHHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
+def HHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
     n_vars = len(var_pos)
     input = Input(shape=(n_jets, n_vars), name="input")
     normalize = StdLayer(mean_std_json, var_pos, 5, name='std_layer')(input)
     scale = ScaleLayer(min_max_json, var_pos, [-1,1], name='scale_layer')(normalize)
 
-    masked_scale = Masking(name='masking')(scale)
+    masked_scale = Masking(name='masking')(normalize)
     x = Slice(name='slice')(masked_scale)
     #x = Lambda(lambda x: x[:,:,1:])(masked_scale)
     #x  = masked_scale
@@ -170,6 +172,37 @@ def CreateHHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
     # output = (2 * output ) / s
 
     return Model([input], [norm], "HHModel")
+
+def ListToVector(files):
+    v = ROOT.std.vector('string')()
+    for file in files:
+        v.push_back(file)
+    return v
+
+def sel_acc(y_true, y_pred, n_positions, n_exp, do_ratio, return_num=False):
+    pred_sorted = tf.argsort(y_pred, axis=1, direction='DESCENDING')
+    n_evt = tf.shape(y_true)[0]
+    evt_id = tf.range(n_evt)
+    matches_vec = []
+    for n in range(n_positions):
+        index = tf.transpose(tf.stack([evt_id, tf.reshape(pred_sorted[:, n], shape=(n_evt,))]))
+        matches_vec.append(tf.gather_nd(y_true, index))
+    matches_sum = tf.add_n(matches_vec)
+    valid = tf.cast(tf.equal(matches_sum, n_exp), tf.float32)
+    if do_ratio:
+        n_valid = tf.reduce_sum(valid)
+        ratio = n_valid / tf.cast(n_evt, tf.float32)
+        if return_num:
+            ratio = ratio.numpy()
+        return ratio
+    return valid
+
+def sel_acc_2(y_true, y_pred):
+    return sel_acc(y_true, y_pred, 2, 2, False)
+def sel_acc_3(y_true, y_pred):
+    return sel_acc(y_true, y_pred, 3, 2, False)
+def sel_acc_4(y_true, y_pred):
+    return sel_acc(y_true, y_pred, 4, 2, False)
 
 
 # def CreateHHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
