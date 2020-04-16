@@ -2,12 +2,16 @@
 # This file is part of https://github.com/hh-italian-group/hh-bbtautau.
 
 import tensorflow as tf
+from keras import Model
 config = tf.ConfigProto(allow_soft_placement=True, device_count = {'CPU' : 1, 'GPU' : 1})
 config.gpu_options.allow_growth = True
+session = tf.Session(config=config)
+
 
 # from tensorflow import keras
 from keras.callbacks import CSVLogger
 from keras.callbacks import Callback
+from keras.optimizers import adam
 
 import argparse
 import json
@@ -58,10 +62,10 @@ def PerformTraining(file_name, n_epoch, params):
     tf.set_random_seed(args.seed)
 
     model = pm.HHModel(var_pos, 10,'../config/mean_std_red.json', '../config/min_max_red.json', params)
-    opt = getattr(tf.keras.optimizers, params['optimizers'])(learning_rate=10 ** params['learning_rate_exp'])
-    model.compile(loss='binary_crossentropy',
-                  optimizer=opt,
-                  weighted_metrics=[pm.sel_acc_2])
+    opt = adam(lr=0.001)
+    # opt = tf.keras.optimizers.Adam(lr=0.001)
+    # opt = getattr(tf.keras.optimizers, params['optimizers'])(lr=10 ** params['learning_rate_exp'])
+    model.compile(loss='binary_crossentropy',  optimizer=opt)
     # model.fit(X, batch_size=100)
     # model.call(X[0:1,:,:])
     # opt = getattr(tf.keras.optimizers, params['optimizers'])(learning_rate=10 ** params['learning_rate_exp'])
@@ -69,7 +73,6 @@ def PerformTraining(file_name, n_epoch, params):
     #               optimizer=opt,
     #               weighted_metrics=[pm.sel_acc_2])
     model.build(X.shape)
-    #
     model.summary()
 
     early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_sel_acc_2', mode='max', patience=args.patience)
@@ -78,9 +81,10 @@ def PerformTraining(file_name, n_epoch, params):
                                                          monitor='val_sel_acc_2',  mode='max', save_weights_only=True,
                                                          save_best_only=True, verbose=1)
 
+    print("***** X =", X.shape, " Y = ", Y.shape)
     model.fit(X, Y, sample_weight=w, validation_split=args.validation_split, epochs=args.n_epoch, batch_size=100)
               # callbacks=[csv_logger, save_best_only, early_stop, WeightsSaver(1)],verbose=2)
-
+    print('*****NUTELLA')
     pred = model.predict(X, batch_size=100)
     x = pm.sel_acc(Y, pred, 2, 2,True, True)
 

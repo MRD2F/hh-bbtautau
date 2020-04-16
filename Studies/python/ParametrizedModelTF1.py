@@ -31,6 +31,7 @@ class StdLayer(Layer):
 
     def call(self, X):
         Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
+        # Y = tf.clip_by_value(( - self.vars_mean + X ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
         # X_shape = tf.shape(X)
         vars_apply = tf.logical_and(tf.ones_like(X, dtype=tf.bool), self.vars_apply)
         return tf.where(vars_apply, Y, X)
@@ -73,15 +74,23 @@ class NormToTwo(Layer):
     def compute_mask(self, inputs, mask):
         return mask
 
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0], input_shape[1])
+
     def call(self, x, mask=None):
         if mask is None:
             raise RuntimeError("Mask is none")
         input_shape = tf.shape(x)
+        print('NormToTwo SHAPE  = ',x.shape)
         x = tf.reshape(x, shape=(input_shape[0], input_shape[1]))
+        print('MUL  = ',x.shape, ' * ', tf.cast(mask, dtype=tf.float32).shape)
         x = x * tf.cast(mask, dtype=tf.float32)
         s = tf.reshape(tf.reduce_sum(x, axis = 1), shape=(input_shape[0], 1))
-        # x = (2 * x ) / s
-        x = tf.clip_by_value((2.01 * x ) / (s + 0.01), 0, 1)
+        x = (2 * x ) / s
+        print('NormToTwo SHAPE = ',x.shape)
+        # x = tf.clip_by_value((2.01 * x ) / (s + 0.01), 0, 1)
+        # self.compute_output_shape(x)
+        print('NormToTwo SHAPE 1 = ',x.shape)
         return x
 
 class Slice(Layer):
@@ -157,6 +166,7 @@ def HHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
     output = TimeDistributed(Dense(1, activation="sigmoid"), name='output') (x)
 
     norm = NormToTwo(name='NormToTwo')(output)
+
     # input_shape = tf.shape(input)
     # output = Lambda(lambda x: tf.reshape(output, shape=(input_shape[0], input_shape[1]) ) ) (output)
 
