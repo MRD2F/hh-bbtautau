@@ -30,8 +30,7 @@ class StdLayer(Layer):
         super(StdLayer, self).__init__(**kwargs)
 
     def call(self, X):
-        Y = np.clip(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
-        # Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
+        Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
         # X_shape = tf.shape(X)
         vars_apply = tf.logical_and(tf.ones_like(X, dtype=tf.bool), self.vars_apply)
         return tf.where(vars_apply, Y, X)
