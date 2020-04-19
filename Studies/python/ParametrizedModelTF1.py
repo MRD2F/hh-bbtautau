@@ -140,8 +140,8 @@ def HHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
     for i in range(params['num_rnn_layers']):
         x = LSTM(params['num_units_rnn_layer'], implementation=2, recurrent_activation='sigmoid',return_sequences=True,name='rnn_{}'.format(i)) (x)
         x = BatchNormalization(name='batch_normalization_rnn_{}'.format(i))(x)
-        # if params['dropout_rate_rnn'] > 0.0:
-        #     rnn = Dropout(params['dropout_rate_rnn'], name='dropout_rnn_pre_{}'.format(i))(rnn)
+        if params['dropout_rate_rnn'] > 0.0:
+            x = Dropout(params['dropout_rate_rnn'], name='dropout_rnn_pre_{}'.format(i))(x)
         if i < params['num_rnn_layers'] - 1 :
             x = Concatenate(name='concatenate_{}'.format(i))([last_pre, x])
 
@@ -150,6 +150,8 @@ def HHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
         x = TimeDistributed(Dense(params['num_units_den_layers_post'], activation=params['activation_dense_post']),
                             name='dense_pos_{}'.format(i)) (x)
         x = BatchNormalization(name='batch_normalization_post_{}'.format(i))(x)
+        if params['dropout_rate_rnn'] > 0.0:
+            x = Dropout(params['dropout_rate_rnn'], name='dropout_rnn_pre_{}'.format(i))(x)
 
     # x = TimeDistributed(Dense(15, activation="sigmoid"), name='pluto') (x)
     output = TimeDistributed(Dense(1, activation="sigmoid"), name='output') (x)

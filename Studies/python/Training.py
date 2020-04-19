@@ -3,7 +3,7 @@
 
 import tensorflow as tf
 from keras import Model
-config = tf.ConfigProto(allow_soft_placement=True, device_count = {'CPU' : 1, 'GPU' : 1})
+config = tf.ConfigProto(allow_soft_placement=False, device_count = {'CPU' : 1, 'GPU' : 1})
 config.gpu_options.allow_growth = True
 session = tf.Session(config=config)
 
@@ -12,6 +12,7 @@ from keras.callbacks import CSVLogger
 from keras.callbacks import Callback
 from keras.optimizers import adam
 from keras import backend as K
+K.set_session(session)
 
 import argparse
 import json
@@ -84,8 +85,6 @@ def PerformTraining(file_name, n_epoch, params):
 
     model.fit(X, Y, sample_weight=w, validation_split=args.validation_split, epochs=args.n_epoch, batch_size=100,
                   callbacks=[csv_logger, save_best_only,early_stop,  WeightsSaver(1)],verbose=2)
-
-              # callbacks=[csv_logger, save_best_only, early_stop, WeightsSaver(1)],verbose=2)
 
     model.save('{}_par_{}_all_model'.format(args.output,args.parity ))
     # pred = model.predict(X, batch_size=100)
