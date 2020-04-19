@@ -6,37 +6,44 @@ import time
 
 import InputsProducer
 
-model_file= 'prova_pipo_v2_par1.pb'
+# model_file= 'prova_pipo_v2_par1.pb'
+# model_file= 'prova_pipo_v3_par_1.pb'
+
+# model_file= 'model_par_0_v2_no_norm.pb'
+model_file= 'model_par_1.pb'
+
 
 # file_name = 'GluGluToRadionToHHTo2B2Tau_M-750_narrow_tauTau_2017_ggHH_Res.root'
 
 # data = InputsProducer.CreateRootDF(file_name, 0, True, True)
 # X, Y, Z, var_pos, var_pos_z, var_name = InputsProducer.CreateXY(data, '../config/training_variables.json')
 
-X = np.load('X_par1.npy')
+X = np.load('X_par0_2017.npy')
+print("X.shape = ", X.shape)
 # X= X[2929:2929+1, :, :]
+# X= X[344539:2929+1, :, :]
+
 
 # print(X)
 # raise RuntimeError("stop")
 
 with tf.gfile.GFile(model_file, 'rb') as f:
     graph_def = tf.GraphDef()
+    print("a")
     graph_def.ParseFromString(f.read())
+
 
 with tf.Graph().as_default() as graph:
     tf.import_graph_def(graph_def, name="HHModel")
-
     config = tf.ConfigProto(intra_op_parallelism_threads=2,
                             inter_op_parallelism_threads=2,
                             allow_soft_placement=True,
                             device_count = {'CPU' : 1, 'GPU' : 0})
-
     sess = tf.Session(graph=graph, config=config)
-
     #sess = tf.Session()
 
 
-    #for n in graph.as_graph_def().node:
+    # for n in graph.as_graph_def().node:
     #    print(n.name, n)
     # layer_names = [n.name for n in graph.as_graph_def().node]
     # print(layer_names)
@@ -48,16 +55,17 @@ with tf.Graph().as_default() as graph:
     #             print(x)
     # raise RuntimeError("stop")
     x_graph = graph.get_tensor_by_name('HHModel/input:0')
+    # y_graph = graph.get_tensor_by_name('HHModel/NormToTwo/mul:0')
     y_graph = graph.get_tensor_by_name('HHModel/NormToTwo/div:0')
     # y_graph = graph.get_tensor_by_name('HHModel/rnn_0/transpose_2:0')
     # y_graph = graph.get_tensor_by_name('HHModel/batch_normalization_post_12/batchnorm_1/add_1:0')
     # y_graph = graph.get_tensor_by_name('HHModel/output/Reshape_1:0')
     # y_graph = graph.get_tensor_by_name('HHModel/slice/strided_slice:0')
+    # HHModel/output/Reshape_1
 
     #print(y_graph.shape)
 
     sess.run(tf.global_variables_initializer())
-
 
     # pred = sess.run(y_graph, feed_dict={ x_graph: np.ones((4, 10, 15))})
     start = time.time()
@@ -71,7 +79,12 @@ with tf.Graph().as_default() as graph:
     # print(np.array2string(pred, separator=','))
     #print(np.sum(pred, axis=-1))
 
-    np.save('pred_TF1_par1', pred)
+    # np.save('pred_TF1_par1', pred)
+    # np.save('pred_TF1_v2_par_1', pred)
+    # np.save('pred_X_1_model_0_no_norm_2017', pred)
+    np.save('pred_X_0_model_1_2017', pred)
+
+
 
 
     # h5f = h5py.File('pred.h5', 'w')

@@ -42,7 +42,7 @@ with open(args.params) as f:
     params = json.load(f)
 
 n_jets = 10
-model = pm.CreateHHModel(var_pos, n_jets, '../config/mean_std_red.json', '../config/min_max_red.json', params )
+model = pm.HHModel(var_pos, n_jets, '../config/mean_std_red.json', '../config/min_max_red.json', params )
 
 #model.compile(loss='binary_crossentropy', optimizer='adam')
 print(model.summary())
