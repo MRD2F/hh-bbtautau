@@ -31,8 +31,6 @@ class StdLayer(Layer):
 
     def call(self, X):
         Y = tf.clip_by_value(( X - self.vars_mean ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
-        # Y = tf.clip_by_value(( - self.vars_mean + X ) / self.vars_std, -self.n_sigmas, self.n_sigmas)
-        # X_shape = tf.shape(X)
         vars_apply = tf.logical_and(tf.ones_like(X, dtype=tf.bool), self.vars_apply)
         return tf.where(vars_apply, Y, X)
 
@@ -81,16 +79,10 @@ class NormToTwo(Layer):
         if mask is None:
             raise RuntimeError("Mask is none")
         input_shape = tf.shape(x)
-        print('NormToTwo SHAPE  = ',x.shape)
         x = tf.reshape(x, shape=(input_shape[0], input_shape[1]))
-        print('MUL  = ',x.shape, ' * ', tf.cast(mask, dtype=tf.float32).shape)
         x = x * tf.cast(mask, dtype=tf.float32)
         s = tf.reshape(tf.reduce_sum(x, axis = 1), shape=(input_shape[0], 1))
-        x = (2 * x ) / s
-        print('NormToTwo SHAPE = ',x.shape)
-        # x = tf.clip_by_value((2.01 * x ) / (s + 0.01), 0, 1)
-        # self.compute_output_shape(x)
-        print('NormToTwo SHAPE 1 = ',x.shape)
+        x = tf.clip_by_value((2.01 * x ) / (s + 0.01), 0, 1)
         return x
 
 class Slice(Layer):
@@ -107,10 +99,7 @@ class Slice(Layer):
     def call(self, x, mask=None):
         if mask is None:
             raise RuntimeError("Slice Mask is none")
-        print("mask shape", mask.shape)
-        print("x shape", x.shape)
         x = x[:,:,1:]
-        print("x shape", x.shape)
         return x
 
 
@@ -137,7 +126,7 @@ def HHModel(var_pos, n_jets, mean_std_json, min_max_json, params):
     normalize = StdLayer(mean_std_json, var_pos, 5, name='std_layer')(input)
     scale = ScaleLayer(min_max_json, var_pos, [-1,1], name='scale_layer')(normalize)
 
-    masked_scale = Masking(name='masking')(normalize)
+    masked_scale = Masking(name='masking')(scale)
     x = Slice(name='slice')(masked_scale)
     #x = Lambda(lambda x: x[:,:,1:])(masked_scale)
     #x  = masked_scale
@@ -189,17 +178,17 @@ def ListToVector(files):
     return v
 
 def sel_acc(y_true, y_pred, n_positions, n_exp, do_ratio, return_num=False):
-    pred_sorted = tf.argsort(y_pred, axis=1, direction='DESCENDING')
-    n_evt = tf.shape(y_true)[0]
-    evt_id = tf.range(n_evt)
+    pred_sorted = np.argsort(y_pred, axis=1, direction='DESCENDING')
+    n_evt = np.shape(y_true)[0]
+    evt_id = np.range(n_evt)
     matches_vec = []
     for n in range(n_positions):
-        index = tf.transpose(tf.stack([evt_id, tf.reshape(pred_sorted[:, n], shape=(n_evt,))]))
-        matches_vec.append(tf.gather_nd(y_true, index))
-    matches_sum = tf.add_n(matches_vec)
-    valid = tf.cast(tf.equal(matches_sum, n_exp), tf.float32)
+        index = np.transpose(np.stack([evt_id, tf.reshape(pred_sorted[:, n], shape=(n_evt,))]))
+        matches_vec.append(np.gather_nd(y_true, index))
+    matches_sum = np.add_n(matches_vec)
+    valid = np.cast(np.equal(matches_sum, n_exp), tf.float32)
     if do_ratio:
-        n_valid = tf.reduce_sum(valid)
+        n_valid = np.reduce_sum(valid)
         ratio = n_valid / tf.cast(n_evt, tf.float32)
         if return_num:
             ratio = ratio.numpy()
