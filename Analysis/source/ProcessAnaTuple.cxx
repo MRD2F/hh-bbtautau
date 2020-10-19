@@ -164,6 +164,7 @@ private:
                     const auto& dataId = tupleReader->GetDataIdByHash(dataId_hash);
                     x = static_cast<T>(tupleReader->GetNormalizedMvaScore(dataId, static_cast<float>(x)));
                 }
+                // auto pu_weight = tupleReader->GetPuWeight(UncertaintyScale::Up);
 
                 std::lock_guard<Hist::Mutex> lock(hist->GetMutex());
                 hist->Fill(x, weight);
@@ -221,7 +222,9 @@ private:
         for(const auto& hist_name : activeVariables) {
             std::cout << hist_name << " ";
             const std::string df_hist_name = hist_name == "mva_score" ? "all_mva_scores" : hist_name;
-            const std::vector<std::string> branches = {"dataIds", "all_weights", df_hist_name};
+
+            const std::vector<std::string> branches = {"dataIds", "all_weights_pu_down", df_hist_name};
+            // const std::vector<std::string> branches_v2 = {"dataIds", "all_weights_pu_down", df_hist_name};
             AnaDataFiller filter(tupleReader, anaDataCollection, ana_setup.categories, subCategories,
                                  ana_setup.unc_sources, hist_name, limitVariables.count(hist_name));
             auto df = get_df(hist_name);

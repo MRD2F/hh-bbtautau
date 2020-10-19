@@ -45,6 +45,8 @@ namespace analysis {
 #define ANA_EVENT_DATA() \
     VAR(std::vector<size_t>, dataIds) /* EventAnalyzerDataId */ \
     VAR(std::vector<double>, all_weights) /* all weight */ \
+    VAR(std::vector<double>, all_weights_pu_up) /* all weight */ \
+    VAR(std::vector<double>, all_weights_pu_down) /* all weight */ \
     VAR(std::vector<float>, all_mva_scores) /* all mva scores */ \
     VAR(std::vector<float>, btag_weight_Loose) /* btag weight Loose wp: central,up,down */ \
     VAR(std::vector<float>, btag_weight_Medium) /* btag weight Medium wp: central,up,down */ \
@@ -86,8 +88,9 @@ namespace analysis {
     P4_DATA(SVfit) \
     VAR_LIST(float, SVfit_pt_error, SVfit_eta_error, SVfit_phi_error, SVfit_m_error, SVfit_mt, SVfit_mt_error) \
     VAR(int, kinFit_convergence) \
-    VAR_LIST(float, kinFit_m, kinFit_chi2) \
+    VAR_LIST(float, kinFit_m, kinFit_chi2, kinFit_m_pu_up, kinFit_m_pu_down) \
     VAR(float, MT2) \
+    VAR_LIST(float, pileup_up, pileup_down) \
     VAR_LIST(float, npv, HT_total, HT_otherjets, lhe_HT, n_jets, n_jets_eta24, n_jets_eta24_eta5, \
                     n_selected_gen_jets, n_selected_gen_bjets, genJets_nTotal, \
                     jets_nTotal_hadronFlavour_b, jets_nTotal_hadronFlavour_c) \
@@ -237,8 +240,10 @@ public:
     size_t GetNumberOfEntries() const;
     const DataId& GetDataIdByHash(Hash hash) const;
     const RDF& GetDataFrame() const;
+    const RDF& GetDataFramePU() const;
     const std::list<RDF>& GetSkimmedDataFrames() const;
     float GetNormalizedMvaScore(const DataId& dataId, float raw_score) const;
+    // float GetPuWeight(UncertaintyScale unc_scale) const;
 
 private:
     void DefineBranches(const NameSet& active_var_names, bool all);
@@ -250,6 +255,7 @@ private:
     std::shared_ptr<TTree> tree;
     ROOT::RDataFrame dataFrame;
     RDF df;
+    RDF df_pu;
     std::list<RDF> skimmed_df;
     DataIdBiMap known_data_ids;
     NameSet var_branch_names;

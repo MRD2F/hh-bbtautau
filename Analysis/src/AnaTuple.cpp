@@ -143,6 +143,20 @@ void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const 
             fill_unc_weight_vec(uncs_weight_map.at(UncertaintySource::PileUp), tuple().unc_PileUp, true);
         }
     }
+    for (size_t i = 0; i < tuple().all_weights.size(); ++i){
+        auto weight = tuple().all_weights.at(i);
+        auto pu_up = event.GetEventCandidate().GetUncSource() == UncertaintySource::None ?
+                            tuple().unc_PileUp.at(0) : 1;
+        auto pu_down = event.GetEventCandidate().GetUncSource() == UncertaintySource::None ?
+                            tuple().unc_PileUp.at(1) : 1;
+
+        auto weight_pu_up = weight * pu_up ;
+        auto weight_pu_down = weight * pu_down ;
+
+        tuple().all_weights_pu_up.push_back(weight_pu_up) ;
+        tuple().all_weights_pu_down.push_back(weight_pu_down) ;
+    }
+
     tuple().has_b_pair = event.HasBjetPair();
     tuple().has_VBF_pair = event.HasVBFjetPair();
     tuple().pass_VBF_trigger = pass_VBF_trigger;
@@ -280,7 +294,11 @@ void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const 
     if(runKinFit && event.HasBjetPair())
         kinFit = &event.GetKinFitResults(allow_calc_svFit);
     tuple().kinFit_convergence = kinFit ? kinFit->convergence : def_val_int;
-    tuple().kinFit_m = kinFit && kinFit->HasValidMass() ? static_cast<float>(kinFit->mass) : def_val;
+    tuple().kinFit_m = kinFit && kinFit->HasValidMass() ? static_cast<float>(kinFit->mass): def_val;
+    if(event.GetEventCandidate().GetUncSource() == UncertaintySource::None){
+        tuple().kinFit_m_pu_up = kinFit && kinFit->HasValidMass() ? static_cast<float>(kinFit->mass) * tuple().unc_PileUp.at(0): def_val;
+        tuple().kinFit_m_pu_down = kinFit && kinFit->HasValidMass() ? static_cast<float>(kinFit->mass) * tuple().unc_PileUp.at(1): def_val;
+    }
     tuple().kinFit_chi2 = kinFit && kinFit->HasValidMass() ? static_cast<float>(kinFit->chi2) : def_val;
 
     tuple().MT2 = event.HasBjetPair() ? static_cast<float>(event.GetMT2()) : def_val;
@@ -322,7 +340,7 @@ const AnaTupleReader::NameSet AnaTupleReader::IntBranches = {
 
 AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, NameSet& active_var_names) :
     file(root_ext::OpenRootFile(file_name)), tree(root_ext::ReadObject<TTree>(*file, ToString(channel))),
-    dataFrame(*tree), df(dataFrame)
+    dataFrame(*tree), df(dataFrame), df_pu(dataFrame)
 {
     static const NameSet support_branches = {
         "dataIds", "all_weights", "is_central_es", "sample_id", "all_mva_scores", "weight", "btag_weight",
@@ -330,7 +348,7 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
         "Hbb_p4", "Htt_p4", "HttMET_p4", "VBF1_valid", "VBF1_p4", "VBF2_valid", "VBF2_p4", "SVfit_p4", "mass_top_pair",
         "is_boosted", "channelId", "central_jet1_valid", "central_jet1_p4", "central_jet2_valid", "central_jet2_p4",
         "central_jet3_valid", "central_jet3_p4", "central_jet4_valid", "central_jet4_p4", "central_jet5_valid",
-         "central_jet5_p4"
+         "central_jet5_p4", "pileup_up", "pileup_down"
     };
 
     DefineBranches(active_var_names, active_var_names.empty());
@@ -395,6 +413,10 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all)
     const auto GetEta = [](const LorentzVectorM& p4) { return p4.eta(); };
     const auto GetPhi = [](const LorentzVectorM& p4) { return p4.phi(); };
     const auto GetMass = [](const LorentzVectorM& p4) { return p4.mass(); };
+    const auto GetPuUp = [](const float& pileup_up) { return pileup_up; };
+    //     std::map<UncertaintyScale, float> us = {{UncertaintyScale::Up, 0}, {UncertaintyScale::Down, 1}};
+    //     return pu_vec.at(0);
+    // };
 
     const auto DeltaPhi = [](const LorentzVectorM& p4_1, const LorentzVectorM& p4_2) {
         return ROOT::Math::VectorUtil::DeltaPhi(p4_1, p4_2);
@@ -452,6 +474,7 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all)
     Define(df, "mt_1", _Calculate_MT, {"tau1_p4", "MET_p4"});
     Define(df, "mt_2", _Calculate_MT, {"tau2_p4", "MET_p4"});
     Define(df_sv, "MT_htautau", _Calculate_MT, {"SVfit_p4", "MET_p4"});
+    Define(df, "pu_up", GetPuUp, {"pileup_up"});
 
     Define(df, "dR_l1l2", DeltaR, {"tau1_p4", "tau2_p4"});
     Define(df, "abs_dphi_l1MET", AbsDeltaPhi, {"tau1_p4", "MET_p4"});
@@ -512,6 +535,7 @@ const AnaTupleReader::DataId& AnaTupleReader::GetDataIdByHash(Hash hash) const
 
 size_t AnaTupleReader::GetNumberOfEntries() const { return static_cast<size_t>(tree->GetEntries()); }
 const AnaTupleReader::RDF& AnaTupleReader::GetDataFrame() const { return df; }
+const AnaTupleReader::RDF& AnaTupleReader::GetDataFramePU() const { return df_pu; }
 const std::list<AnaTupleReader::RDF>& AnaTupleReader::GetSkimmedDataFrames() const { return skimmed_df; }
 
 void AnaTupleReader::ExtractDataIds(const AnaAux& aux)
@@ -559,6 +583,16 @@ float AnaTupleReader::GetNormalizedMvaScore(const DataId& dataId, float raw_scor
             + mva_target_range.min();
     return static_cast<float>(result);
 }
+
+// float AnaTupleReader::GetPuWeight(UncertaintyScale unc_scale) const
+// {
+//     // std::map<UncertaintyScale, float> us = {{UncertaintyScale::Up, 0}, {UncertaintyScale::Down, 1}};
+//     auto x = GetDataFrame();
+//     auto y = x.Cache({"central_jet1"});
+//     // auto y = x.Histo1D("pu_up");
+//     //  const auto names = df.GetColumnNames();
+//     return 1;
+// }
 
 std::string HyperPoint::ToString()
 {
