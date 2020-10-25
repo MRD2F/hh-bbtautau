@@ -45,6 +45,8 @@ namespace analysis {
 #define ANA_EVENT_DATA() \
     VAR(std::vector<size_t>, dataIds) /* EventAnalyzerDataId */ \
     VAR(std::vector<double>, all_weights) /* all weight */ \
+    VAR(std::vector<double>, all_weights_pu_up) /* all weight */ \
+    VAR(std::vector<double>, all_weights_pu_down) /* all weight */ \
     VAR(std::vector<float>, all_mva_scores) /* all mva scores */ \
     VAR(std::vector<float>, btag_weight_Loose) /* btag weight Loose wp: central,up,down */ \
     VAR(std::vector<float>, btag_weight_Medium) /* btag weight Medium wp: central,up,down */ \

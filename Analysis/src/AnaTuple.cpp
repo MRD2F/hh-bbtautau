@@ -143,6 +143,20 @@ void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const 
             fill_unc_weight_vec(uncs_weight_map.at(UncertaintySource::PileUp), tuple().unc_PileUp, true);
         }
     }
+
+    for (size_t i = 0; i < tuple().all_weights.size(); ++i){
+        auto weight = tuple().all_weights.at(i);
+        auto pu_up = event.GetEventCandidate().GetUncSource() == UncertaintySource::None ?
+                            tuple().unc_PileUp.at(0) : 1;
+        auto pu_down = event.GetEventCandidate().GetUncSource() == UncertaintySource::None ?
+                            tuple().unc_PileUp.at(1) : 1;
+
+        auto weight_pu_up = weight * pu_up ;
+        auto weight_pu_down = weight * pu_down ;
+
+        tuple().all_weights_pu_up.push_back(weight_pu_up) ;
+        tuple().all_weights_pu_down.push_back(weight_pu_down) ;
+    }
     tuple().has_b_pair = event.HasBjetPair();
     tuple().has_VBF_pair = event.HasVBFjetPair();
     tuple().pass_VBF_trigger = pass_VBF_trigger;

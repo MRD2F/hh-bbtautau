@@ -20,6 +20,7 @@ struct AnalyzerArguments : CoreAnalyzerArguments {
     OPT_ARG(bool, draw, true);
     OPT_ARG(std::string, vars, "");
     OPT_ARG(size_t, n_parallel, 10);
+    OPT_ARG(std::string, scale, "");
     run::Argument<std::vector<std::string>> input_friends{"input_friends", "", {}};
 };
 
@@ -188,7 +189,7 @@ private:
         {
             Hist* hist = GetHistogram(dataId_hash);
             if(hist) {
-                auto x = value;
+                auto  x = value;
                 if(is_mva_score) {
                     const auto& dataId = tupleReader->GetDataIdByHash(dataId_hash);
                     x = static_cast<T>(tupleReader->GetNormalizedMvaScore(dataId, static_cast<float>(x)));
@@ -250,21 +251,30 @@ private:
         for(const auto& hist_name : activeVariables) {
             std::cout << hist_name << " ";
             const std::string df_hist_name = hist_name == "mva_score" ? "all_mva_scores" : hist_name;
-            const std::vector<std::string> branches = {"dataIds", "all_weights", df_hist_name};
+            // const std::vector<std::string> branches = {"dataIds", , df_hist_name};
             AnaDataFiller filter(tupleReader, anaDataCollection, ana_setup.categories, subCategories,
                                  ana_setup.unc_sources, hist_name, true); //limitVariables.count(hist_name));
             auto df = get_df(hist_name);
+
+            const std::vector<std::string> branches_up = {"dataIds", "all_weights_pu_up" , df_hist_name};
+            const std::vector<std::string> branches_down = {"dataIds", "all_weights_pu_down" , df_hist_name};
+            const std::vector<std::string> branches_central = {"dataIds", "all_weights" , df_hist_name};
+
+
+            std::map<std::string, std::vector<std::string>> branches = { {"up", branches_up }, {"down", branches_down },
+                                                                         {"central", branches_central } };
+
             ROOT::RDF::RResultPtr<AnaDataFiller> result;
             if(filter.is_mva_score)
-                result = df.Fill<VecType<size_t>, VecType<double>, VecType<float>>(std::move(filter), branches);
+                result = df.Fill<VecType<size_t>, VecType<double>, VecType<float>>(std::move(filter), branches.at(args.scale()));
             else if(bbtautau::AnaTupleReader::BoolBranches.count(df_hist_name))
-                result = df.Fill<VecType<size_t>, VecType<double>, bool>(std::move(filter), branches);
+                result = df.Fill<VecType<size_t>, VecType<double>, bool>(std::move(filter), branches.at(args.scale()));
             else if(bbtautau::AnaTupleReader::IntBranches.count(df_hist_name))
-                result = df.Fill<VecType<size_t>, VecType<double>, int>(std::move(filter), branches);
+                result = df.Fill<VecType<size_t>, VecType<double>, int>(std::move(filter), branches.at(args.scale()));
             else if(is_defined_column(df, hist_name))
-                result = df.Fill<VecType<size_t>, VecType<double>, double>(std::move(filter), branches);
+                result = df.Fill<VecType<size_t>, VecType<double>, double>(std::move(filter), branches.at(args.scale()));
             else
-                result = df.Fill<VecType<size_t>, VecType<double>, float>(std::move(filter), branches);
+                result = df.Fill<VecType<size_t>, VecType<double>, float>(std::move(filter), branches.at(args.scale()));
             results.push_back(result);
         }
         std::cout << std::endl;
