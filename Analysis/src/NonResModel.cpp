@@ -73,8 +73,30 @@ NonResModel::NonResModel(const mc_corrections::EventWeights_HH& _weights, const 
 
 void NonResModel::ProcessEvent(const EventAnalyzerDataId& anaDataId, EventInfo& event, double weight,
                                double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds, double cross_section,
-                               std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map)
+                               std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map,
+                               std::map<int, double> weights_bench)
 {
+
+
+    std::map<std::string, int> eft_point_names = {
+        {"GluGluSignal_NonRes_benchScan_kl7.5_kt1_c2-1_cg0_c2g0", 1},
+        {"GluGluSignal_NonRes_benchScan_kl1_kt1_c20.5_cg-0.8_c2g0.6", 2},
+        {"GluGluSignal_NonRes_benchScan_kl1_kt1_c2-1.5_cg0_c2g-0.8", 3},
+        {"GluGluSignal_NonRes_benchScan_kl-3.5_kt1.5_c2-3_cg0_c2g0", 4},
+        {"GluGluSignal_NonRes_benchScan_kl1_kt1_c20_cg0.8_c2g-1", 5},
+        {"GluGluSignal_NonRes_benchScan_kl2.4_kt1_c20_cg0.2_c2g-0.2", 6},
+        {"GluGluSignal_NonRes_benchScan_kl5_kt1_c20_cg0.2_c2g-0.2", 7},
+        {"GluGluSignal_NonRes_benchScan_kl15_kt1_c20_cg-1_c2g1", 8},
+        {"GluGluSignal_NonRes_benchScan_kl1_kt1_c21_cg-0.6_c2g0.6", 9},
+        {"GluGluSignal_NonRes_benchScan_kl10_kt1.5_c2-1_cg0_c2g0", 10},
+        {"GluGluSignal_NonRes_benchScan_kl2.4_kt1_c20_cg1_c2g-1", 11},
+        {"GluGluSignal_NonRes_benchScan_kl15_kt1_c21_cg0_c2g0", 12},
+        {"GluGluSignal_NonRes_benchScan_kl0_kt1_c20_cg0_c2g0", 13},
+        {"GluGluSignal_NonRes_benchScan_kl1_kt1_c20_cg0_c2g0", 14},
+    };
+
+
+    // std::cout << "n size = " << points.size() << "\n";
     for(size_t n = 0; n < points.size(); ++n) {
         if(points_are_orthogonal && (event->evt % points.size()) != n) continue;
         const auto final_id = anaDataId.Set(point_names.at(n));
@@ -85,6 +107,11 @@ void NonResModel::ProcessEvent(const EventAnalyzerDataId& anaDataId, EventInfo& 
         const double xs_correction = point_xs.at(n) > 0 ? point_xs.at(n) / cross_section : 1.;
         const double final_weight = weight * shape_weight_correction * eft_weight_correction * xs_correction;
         dataIds[final_id] = final_weight;
+
+        // std::cout << "point: " << eft_point_names.at(point_names.at(n)) << ", point name: " <<  point_names.at(n)
+        //           << ", weight: " << shape_weight_correction * eft_weight_correction * xs_correction << "\n";
+        weights_bench[eft_point_names[point_names.at(n)]] = weight * shape_weight_correction * eft_weight_correction * xs_correction;
+        // std::cout< "point_names: " << point_names.at(n) << "\n";
 
         uncs_weight_map[UncertaintySource::PileUp][UncertaintyScale::Central] = static_cast<float>(event->weight_pu /
                 total_shape_weights.at(UncertaintyScale::Central).at(n));

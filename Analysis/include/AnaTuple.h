@@ -62,6 +62,8 @@ namespace analysis {
 
 
 #define ANA_EVENT_DATA() \
+    VAR(double, weights_point) /* hashed dataset name */ \
+    VAR(std::vector<double>, points) /* hashed dataset name */ \
     VAR(UInt_t, dataset) /* hashed dataset name */ \
     VAR(UInt_t, event_region) /* hashed event region name */ \
     VAR(Int_t, unc_source) /* uncertainty source */ \
@@ -197,7 +199,8 @@ public:
     ~AnaTupleWriter();
     void AddEvent(EventInfo& event, const DataIdMap& dataIds, const CategoriesFlags& categories_flags,
                   const BTagWeights& btag_weights,
-                  const std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map);
+                  const std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map,
+                  std::map<int, double> weights_bench = std::map<int, double>());
 
 private:
     static void FillUncWeightVec(const std::map<UncertaintyScale, float>& weights_in,

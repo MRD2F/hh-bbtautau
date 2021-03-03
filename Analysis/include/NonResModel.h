@@ -37,7 +37,8 @@ public:
                 std::shared_ptr<TFile> file, tuple_skimmer::CrossSectionProvider& xs_provider);
     void ProcessEvent(const EventAnalyzerDataId& anaDataId, EventInfo& event, double weight, double shape_weight,
                       bbtautau::AnaTupleWriter::DataIdMap& dataIds, double cross_section,
-                      std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map);
+                      std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map,
+                      std::map<int, double> weights_bench);
 
 private:
     WeightingMode weighting_mode;

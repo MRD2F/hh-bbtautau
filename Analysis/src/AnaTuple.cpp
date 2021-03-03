@@ -32,13 +32,18 @@ AnaTupleWriter::~AnaTupleWriter()
 
 void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const CategoriesFlags& categories_flags,
                               const BTagWeights& btag_weights,
-                              const std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map)
+                              const std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map,
+                              std::map<int, double> weights_bench)
 {
     static constexpr float def_val = std::numeric_limits<float>::lowest();
     static constexpr int def_val_int = std::numeric_limits<int>::lowest();
 
     if(!dataIds.size()) return;
 
+    if(weights_bench.size() > 0){
+        std::cout << "weight from map: " << weights_bench.at(1) << "\n";
+        tuple().weights_point = weights_bench.at(1);
+    }
     tuple().run = event->run;
     tuple().lumi = event->lumi;
     tuple().evt = event->evt;
@@ -230,7 +235,7 @@ void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const 
         tuple().weight_btag_IterativeFit = btag_weights.iter_weight;
         tuple().weight_btag_IterativeFit_withJES = btag_weights.iter_weight_with_jes ?
                                                    *btag_weights.iter_weight_with_jes : def_val;
-        tuple().is_TuneCP5 = btag_weights.is_TuneCP5;                                           
+        tuple().is_TuneCP5 = btag_weights.is_TuneCP5;
         #define FILL_UNC(r, _, name) \
            FillUncWeightVec(uncs_weight_map.at(UncertaintySource::name), nullptr, \
                &tuple().BOOST_PP_CAT(BOOST_PP_CAT(unc_, name), _Up), \

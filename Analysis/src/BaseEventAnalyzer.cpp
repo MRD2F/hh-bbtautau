@@ -171,6 +171,7 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
             const bool pass_only_vbf_trigger = !pass_normal_trigger && pass_vbf_trigger;
             if(!pass_trigger) continue;
             bbtautau::AnaTupleWriter::DataIdMap dataIds;
+            std::map<int, double> weights_bench;
             std::map<size_t, bool> sync_event_selected;
 
             double lepton_id_iso_weight = 1., trigger_weight = 1., prescale_weight = 1., l1_prefiring_weight = 1.,
@@ -343,7 +344,7 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
                         dataIds[anaDataId] = weight;
                     } else
                         ProcessSpecialEvent(sample, sample_wp, anaDataId, *event, weight,
-                                            (*summary)->totalShapeWeight, dataIds, cross_section, uncs_weight_map);
+                                            (*summary)->totalShapeWeight, dataIds, cross_section, uncs_weight_map, weights_bench);
                 }
 
                 for(size_t n = 0; n < sync_descriptors.size(); ++n) {
@@ -362,7 +363,7 @@ void BaseEventAnalyzer::ProcessDataSource(const SampleDescriptor& sample, const 
                 }
             }
             //dataId
-            anaTupleWriter.AddEvent(*event, dataIds, category_flags, btag_weights, uncs_weight_map);
+            anaTupleWriter.AddEvent(*event, dataIds, category_flags, btag_weights, uncs_weight_map, weights_bench);
         }
     }
 }
@@ -372,12 +373,13 @@ void BaseEventAnalyzer::ProcessSpecialEvent(const SampleDescriptor& sample,
                                             const EventAnalyzerDataId& anaDataId, EventInfo& event, double weight,
                                             double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds,
                                             double cross_section,
-                                            std::map<UncertaintySource,std::map<UncertaintyScale,float>>& uncs_weight_map)
+                                            std::map<UncertaintySource,std::map<UncertaintyScale,float>>& uncs_weight_map,
+                                            std::map<int, double> weights_bench)
 {
     if(sample.sampleType == SampleType::DY){
         dymod.at(sample.name)->ProcessEvent(anaDataId,event,weight,dataIds);
     } else if(sample.sampleType == SampleType::ggHH_NonRes) {
-        nonResModel->ProcessEvent(anaDataId, event, weight, shape_weight, dataIds, cross_section, uncs_weight_map);
+        nonResModel->ProcessEvent(anaDataId, event, weight, shape_weight, dataIds, cross_section, uncs_weight_map, weights_bench);
     } else
         throw exception("Unsupported special event type '%1%'.") % sample.sampleType;
 }
