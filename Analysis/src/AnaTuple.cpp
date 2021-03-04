@@ -267,7 +267,7 @@ void AnaTupleWriter::AddEvent(EventInfo& event, const DataIdMap& dataIds, const 
         const std::string event_region = data_id.Get<EventRegion>().ToString();
 
         if(!known_datasets.count(dataset_name))
-            known_datasets[dataset_name] = static_cast<unsigned>(known_datasets.size());
+            known_datasets[dataset_name] = static_cast<unsigned>(known_datasets.size()); 
         tuple().dataset = known_datasets.at(dataset_name);
 
         if(!known_regions.count(event_region))
