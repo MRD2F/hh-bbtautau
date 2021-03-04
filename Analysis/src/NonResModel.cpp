@@ -110,7 +110,11 @@ void NonResModel::ProcessEvent(const EventAnalyzerDataId& anaDataId, EventInfo& 
 
         // std::cout << "point: " << eft_point_names.at(point_names.at(n)) << ", point name: " <<  point_names.at(n)
         //           << ", weight: " << shape_weight_correction * eft_weight_correction * xs_correction << "\n";
-        weights_bench[eft_point_names[point_names.at(n)]] = weight * shape_weight_correction * eft_weight_correction * xs_correction;
+        std::cout << "eft_point_names.at(point_names.at(n)) : " << eft_point_names.at(point_names.at(n)) << "\n";
+        std::cout << "point_names.at(n) : " << point_names.at(n)  << "\n";
+        std::cout << "final_weight : "<< final_weight << "\n";
+        weights_bench[eft_point_names[point_names.at(n)]] = final_weight;
+        std::cout << "size map at NonRes: "<< weights_bench.size() << "\n";
         // std::cout< "point_names: " << point_names.at(n) << "\n";
 
         uncs_weight_map[UncertaintySource::PileUp][UncertaintyScale::Central] = static_cast<float>(event->weight_pu /

@@ -53,7 +53,7 @@ protected:
                                      double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds,
                                      double cross_section,
                                      std::map<UncertaintySource,std::map<UncertaintyScale,float>>& uncs_weight_map,
-                                     std::map<int, double> weights_bench = std::map<int, double>());
+                                     std::map<int, double> weights_bench);
 
     bool SetRegionIsoRange(const LepCandidate& cand, EventRegion& region) const;
 
