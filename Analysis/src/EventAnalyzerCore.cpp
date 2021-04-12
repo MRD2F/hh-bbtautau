@@ -39,13 +39,9 @@ EventAnalyzerCore::EventAnalyzerCore(const CoreAnalyzerArguments& args, Channel 
     EventRegion::Initialize(signalObjectSelector.GetTauVSjetDiscriminator().second,
                             signalObjectSelector.GetTauVSjetSidebandWPRange().first,
                             signalObjectSelector.GetTauVSjetDiscriminator().second);
-
     ana_setup.ConvertToEventRegion();
-
     RemoveUnusedSamples();
-
     bTagger = std::make_shared<BTagger>(ana_setup.period, ana_setup.jet_ordering);
-
     CreateEventSubCategoriesToProcess(use_base_categories);
 
     if(!ana_setup.xs_cfg.empty())
@@ -55,7 +51,6 @@ EventAnalyzerCore::EventAnalyzerCore(const CoreAnalyzerArguments& args, Channel 
     for (auto& s : unc_sources_group_string){
         unc_sources_group.insert(ana_setup.unc_sources.at(s).begin(), ana_setup.unc_sources.at(s).end());
     }
-
 }
 
 const std::string& EventAnalyzerCore::ChannelNameLatex() const { return __Channel_names_latex.EnumToString(channelId); }

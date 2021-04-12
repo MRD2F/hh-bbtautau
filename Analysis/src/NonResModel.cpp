@@ -74,7 +74,7 @@ NonResModel::NonResModel(const mc_corrections::EventWeights_HH& _weights, const 
 void NonResModel::ProcessEvent(const EventAnalyzerDataId& anaDataId, EventInfo& event, double weight,
                                double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds, double cross_section,
                                std::map<UncertaintySource, std::map<UncertaintyScale, float>>& uncs_weight_map,
-                               std::map<int, double> weights_bench)
+                               std::map<int, double>& weights_bench)
 {
 
 

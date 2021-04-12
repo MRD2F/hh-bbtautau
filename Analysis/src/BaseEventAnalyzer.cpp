@@ -380,7 +380,7 @@ void BaseEventAnalyzer::ProcessSpecialEvent(const SampleDescriptor& sample,
                                             double shape_weight, bbtautau::AnaTupleWriter::DataIdMap& dataIds,
                                             double cross_section,
                                             std::map<UncertaintySource,std::map<UncertaintyScale,float>>& uncs_weight_map,
-                                            std::map<int, double> weights_bench)
+                                            std::map<int, double>& weights_bench)
 {
     if(sample.sampleType == SampleType::DY){
         dymod.at(sample.name)->ProcessEvent(anaDataId,event,weight,dataIds);

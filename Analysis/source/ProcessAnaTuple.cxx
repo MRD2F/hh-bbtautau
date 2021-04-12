@@ -70,6 +70,7 @@ public:
             std::cout << "\n input file \t " ;
             std::cout << input_file << std::endl;
             std::vector<std::string> input_friends = SplitValueList(args.input_friends(),false, ",", true);
+            std::cout << "1" << "\n";
             for (auto& f: input_friends) {
                 boost::replace_all(f, "{UNC_GROUP}", unc_source);
             }
@@ -79,12 +80,20 @@ public:
                     std::cout << '\t' << file_name << '\n';
                 std::cout << std::endl;
             }
+            std::cout << "2" << "\n";
+
             bbtautau::EventTagCreator eventTagger(ana_setup.categories, sub_categories_to_process, unc_sources_total, ana_setup.norm_unc_sources,ana_setup.use_IterativeFit, ana_setup.r_factors_file.at(args.channel()));
+
+
+
             int hastune = 0; // 1 for 2016 etau and tautau, 2 for 2016 muTau, 0 for the rest
             if(args.channel()!= Channel::MuTau && args.period()==Period::Run2016) hastune=1;
             else if (args.channel()== Channel::MuTau && args.period()==Period::Run2016) hastune=2;
+
+            std::cout << "3" << "\n";
             bbtautau::AnaTupleReader tupleReader(input_file, args.channel(), activeVariables, input_friends, eventTagger,
                                                     ana_setup.mdnn_version, ana_setup.norm_unc_sources, hastune);
+            std::cout << "4" << "\n";
 
             if(!tupleReader.GetParametricVariables().empty()) {
                 std::cout << "Parametric variables:\n";
@@ -97,6 +106,7 @@ public:
                 }
                 std::cout << std::endl;
             }
+
             if(args.shapes() && limitVariables.empty()) {
                 for(const auto& limit_setup : ana_setup.limit_setup){
                     for(const auto& [cat, var] : limit_setup.second) {

@@ -6,6 +6,7 @@ This file is part of https://github.com/hh-italian-group/h-tautau. */
 #include "hh-bbtautau/McCorrections/include/HH_nonResonant_weight.h"
 #include "hh-bbtautau/McCorrections/include/TTbar_weight.h"
 #include "hh-bbtautau/McCorrections/include/NJets_HT_weight.h"
+#include <iostream>
 
 namespace analysis {
 namespace mc_corrections {

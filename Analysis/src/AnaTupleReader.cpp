@@ -122,6 +122,7 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
         df(dataFrame), mdnn_version(_mdnn_version), norm_unc(_norm_unc_sources), hastune(_hastune)
 {
     std::mutex mutex;
+    std::cout << "Ana: " << "1" << "\n";
     auto extract_names = [&](const std::vector<unsigned>& hashes, const std::vector<std::string>& names,
                              DatasetBiMap& name_map) -> bool {
         std::lock_guard<std::mutex> lock(mutex);
@@ -145,10 +146,13 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
         return true;
     };
 
+    std::cout << "Ana: " << "2" << "\n";
     //using namespace std::placeholders;
     ROOT::RDataFrame aux_df("aux", files.front().get());
+    std::cout << "Ana: " << "3" << "\n";
     aux_df.Foreach([&](const std::vector<unsigned>& hashes, const std::vector<std::string>& names) {
                    extract_names(hashes, names, known_datasets); }, { "dataset_hashes", "dataset_names" });
+
     DatasetBiMap known_regions_str;
     aux_df.Foreach([&](const std::vector<unsigned>& hashes, const std::vector<std::string>& names) {
                    extract_names(hashes, names, known_regions_str); }, { "region_hashes", "region_names" });
@@ -158,18 +162,23 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
 
     for(const auto& column : df.GetColumnNames())
         branch_types[column] = df.GetColumnType(column);
+        std::cout << "Ana: " << "4" << "\n";
 
     DefineBranches(active_var_names, active_var_names.empty(), event_tagger);
+    std::cout << "Ana: " << "4.1" << "\n";
     if(active_var_names.empty()) {
+        std::cout << "Ana: " << "5" << "\n";
         std::vector<std::vector<std::string>> names = {
             df.GetColumnNames(),
         };
+        std::cout << "Ana: " << "6" << "\n";
         for(auto& other_df : skimmed_df)
             names.push_back(other_df.GetColumnNames());
         for(const auto& name_set : names) {
             active_var_names.insert(name_set.begin(), name_set.end());
         }
     } else {
+        std::cout << "Ana: " << "7" << "\n";
         for(const auto& var_name : active_var_names) {
             if(var_name.back() == '+') {
                 const std::string name = var_name.substr(0, var_name.size() - 1);
@@ -189,16 +198,17 @@ AnaTupleReader::AnaTupleReader(const std::string& file_name, Channel channel, Na
 
 void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, const EventTagCreator& event_tagger)
 {
+    std::cout << "DefineBranches: " << 1 << "\n";
     const auto Define = [&](RDF& target_df, const std::string& var, auto expr,
                               const std::vector<std::string>& columns, bool force = false) {
         if(force || all || active_var_names.count(var))
             target_df = target_df.Define(var, expr, columns);
     };
-
+    std::cout << "DefineBranches: " << 2 << "\n";
     const auto Filter = [](RDF& target_df, const std::string& var) -> RDF {
         return target_df.Filter([](bool flag){ return flag; }, {var});
     };
-
+    std::cout << "DefineBranches: " << 3 << "\n";
     const auto FilterInt = [](RDF& target_df, const std::string& var) -> RDF {
         return target_df.Filter([](int flag) -> bool { return flag; }, {var});
     };
@@ -220,6 +230,7 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, c
     const auto SumP4 = [](const LorentzVectorM& p4_1, const LorentzVectorM& p4_2) {
         return p4_1 + p4_2;
     };
+    std::cout << "DefineBranches: " << 4 << "\n";
 
     const auto GetPt = [](const LorentzVectorM& p4) -> float { return static_cast<float>(p4.pt()); };
     const auto GetEta = [](const LorentzVectorM& p4) -> float { return static_cast<float>(p4.eta()); };
@@ -248,7 +259,7 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, c
     const auto _Calculate_MT = [](const LorentzVectorM& p4, const LorentzVectorM& MET_p4) -> float {
         return static_cast<float>(Calculate_MT(p4, MET_p4));
     };
-
+    std::cout << "DefineBranches: " << 5 << "\n";
     DefineP4(df, "tau1");
     DefineP4(df, "tau2");
     Define(df, "Htt_p4", SumP4, { "tau1_p4", "tau2_p4" }, true);
@@ -262,7 +273,7 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, c
     Define(df, "m_bb", GetMass, {"Hbb_p4"}, true);
 
     DefineP4(df, "SVfit");
-
+    std::cout << "DefineBranches: " << 6 << "\n";
 
     DefineP4(df, "VBF1");
     DefineP4(df, "VBF2");
@@ -288,28 +299,35 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, c
         }
         return full_name;
     };
-
+    std::cout << "DefineBranches: " << 7 << "\n";
     if(mdnn_version.empty()){
         auto fake_vbf_cat = [](){return std::make_pair(-1.f, analysis::VBF_Category::None);};
         Define(df, "vbf_cat", fake_vbf_cat, {}, true);
+        std::cout << "DefineBranches mdnn empty " << "\n";
     }
     else{
+        std::cout << "DefineBranches inside else: " << 1 << "\n";
         std::vector<std::string> mdnn_branches;
         static const std::vector<std::string> mdnn_score_names = {
             "_tt_dl", "_tt_sl", "_tt_lep", "_tt_fh", "_dy", "_hh_ggf", "_tth", "_tth_tautau", "_tth_bb", "_hh_vbf",
             "_hh_vbf_c2v", "_hh_vbf_sm"
         };
+
         for(const auto& score_name : mdnn_score_names) {
             //const std::string branch = "mdnn_" + mdnn_version + score_name;
             std::string branch = Full_branch_name("mdnn_" + mdnn_version + score_name);
             mdnn_branches.push_back(branch);
         }
+        std::cout << "DefineBranches inside else: " << 1 << "\n";
         const auto vbf_cat = make_function(&EventTagCreator::FindVBFCategory);
-        Define(df, "vbf_cat", vbf_cat, mdnn_branches, true);
+        std::cout << "DefineBranches inside else: " << 2 << "\n";
+        // Define(df, "vbf_cat", vbf_cat, mdnn_branches, true);
+        std::cout << "DefineBranches: " << 8 << "\n";
     }
+    std::cout << "DefineBranches: " << 9 << "\n";
     Define(df, "mdnn_score", [](const std::pair<float, analysis::VBF_Category>& vbf_cat) { return vbf_cat.first; },
            {"vbf_cat"}, true);
-
+    std::cout << "DefineBranches: " << 10 << "\n";
     const auto GetTune = [&](unsigned dataset){
       bool is_TuneCP5=0;
       if(hastune==2){
@@ -330,6 +348,7 @@ void AnaTupleReader::DefineBranches(const NameSet& active_var_names, bool all, c
       }
       return is_TuneCP5;
     };
+
     std::vector<std::string> columns =  df.GetColumnNames();
     if(std::find(columns.begin(), columns.end(), "is_TuneCP5")!=columns.end()) {
         hastune=1;

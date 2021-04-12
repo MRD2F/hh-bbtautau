@@ -1,7 +1,7 @@
 /*! Final analysis step for the tauTau channel in the HH->bbtautau analysis.
 This file is part of https://github.com/hh-italian-group/hh-bbtautau. */
 
-#include "Analysis/include/BaseEventAnalyzer.h"
+#include "Analysis/include/BaseEventAnalyzer_v2.h"
 
 namespace analysis {
 
